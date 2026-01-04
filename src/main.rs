@@ -154,6 +154,20 @@ fn main() -> Result<()> {
         }
     });
 
+    // Handle window drag
+    popup.on_drag_window({
+        let popup_weak = popup_weak.clone();
+        move |delta_x, delta_y| {
+            if let Some(popup) = popup_weak.upgrade() {
+                let current_pos = popup.window().position();
+                popup.window().set_position(PhysicalPosition::new(
+                    current_pos.x + delta_x,
+                    current_pos.y + delta_y,
+                ));
+            }
+        }
+    });
+
     // Set up timer to poll for events
     let popup_weak_timer = popup_weak.clone();
     let shared_state_timer = Arc::clone(&shared_state);
@@ -191,8 +205,9 @@ fn main() -> Result<()> {
         // 用户需要手动关闭窗口（点击 X 或按 Escape）
     });
 
-    // 使用事件循环但不显示主窗口，程序在后台静默运行
-    slint::run_event_loop()?;
+    // 使用 run_event_loop_until_quit 让程序在所有窗口关闭后继续运行
+    // 只有托盘菜单的 Exit 或调用 quit_event_loop() 才会退出
+    slint::run_event_loop_until_quit()?;
     Ok(())
 }
 

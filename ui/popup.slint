@@ -32,6 +32,12 @@ export component TranslatePopup inherits Window {
     callback copy-result();
     callback provider-changed(int);
     callback open-settings();
+    callback drag-window(int, int);
+
+    // 拖动状态
+    property <bool> dragging: false;
+    property <length> drag-start-x;
+    property <length> drag-start-y;
 
     // Main container with rounded corners and shadow effect
     Rectangle {
@@ -51,6 +57,15 @@ export component TranslatePopup inherits Window {
             width: parent.width;
             height: 46px;
             mouse-cursor: move;
+
+            moved => {
+                if (self.pressed) {
+                    root.drag-window(
+                        (self.mouse-x - self.pressed-x) / 1px,
+                        (self.mouse-y - self.pressed-y) / 1px
+                    );
+                }
+            }
         }
 
         // Content layout
