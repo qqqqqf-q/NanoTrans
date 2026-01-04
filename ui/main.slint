@@ -1,0 +1,15 @@
+// NanoTrans Main UI
+// Entry point that exports all UI components
+
+import { TranslatePopup } from "popup.slint";
+import { SettingsWindow } from "settings.slint";
+
+// 隐藏的守护窗口，用于保持事件循环运行
+export component KeeperWindow inherits Window {
+    width: 0px;
+    height: 0px;
+    no-frame: true;
+    visible: false;
+}
+
+export { TranslatePopup, SettingsWindow }

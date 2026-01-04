@@ -1,0 +1,285 @@
+// NanoTrans Translation Popup UI
+// A minimal, frameless popup window for displaying translations
+
+import { VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
+
+export component TranslatePopup inherits Window {
+    // Window properties
+    no-frame: true;
+    always-on-top: true;
+    width: 420px;
+    min-height: 180px;
+    background: transparent;
+
+    // Input properties
+    in property <string> source-text: "";
+    in property <string> translated-text: "";
+    in property <bool> loading: false;
+    in property <string> error-message: "";
+    in-out property <int> current-provider-index: 0;
+    in property <[string]> provider-list: ["Google", "DeepL", "LLM"];
+
+    // I18N text properties
+    in property <string> i18n-provider-label: "Provider:";
+    in property <string> i18n-translating: "Translating...";
+    in property <string> i18n-copy: "Copy";
+    in property <string> i18n-apply: "Apply";
+    in property <string> i18n-hint: "Click result or press Enter to apply";
+
+    // Output callbacks
+    callback apply-translation();
+    callback close-popup();
+    callback copy-result();
+    callback provider-changed(int);
+    callback open-settings();
+
+    // Main container with rounded corners and shadow effect
+    Rectangle {
+        x: 4px;
+        y: 4px;
+        width: parent.width - 8px;
+        height: parent.height - 8px;
+        background: #1e1e1e;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: #3a3a3a;
+
+        // 拖动区域 - 点击头部可拖动窗口
+        drag-area := TouchArea {
+            x: 0;
+            y: 0;
+            width: parent.width;
+            height: 46px;
+            mouse-cursor: move;
+        }
+
+        // Content layout
+        VerticalBox {
+            padding: 14px;
+            spacing: 10px;
+
+            // Header with provider selector and buttons
+            HorizontalBox {
+                alignment: space-between;
+                height: 32px;
+                spacing: 8px;
+
+                // Provider selector dropdown
+                HorizontalBox {
+                    spacing: 6px;
+
+                    Text {
+                        text: root.i18n-provider-label;
+                        color: #888888;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+
+                    ComboBox {
+                        width: 120px;
+                        model: root.provider-list;
+                        current-index <=> root.current-provider-index;
+                        selected(value) => {
+                            root.provider-changed(root.current-provider-index);
+                        }
+                    }
+                }
+
+                // Right side buttons
+                HorizontalBox {
+                    spacing: 4px;
+
+                    // Settings button
+                    Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 4px;
+                        background: settings-touch.has-hover ? #3a3a3a : transparent;
+
+                        Text {
+                            text: "S";
+                            color: #888888;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        settings-touch := TouchArea {
+                            clicked => {
+                                root.open-settings();
+                            }
+                        }
+                    }
+
+                    // Close button
+                    Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 4px;
+                        background: close-touch.has-hover ? #4a2020 : transparent;
+
+                        Text {
+                            text: "X";
+                            color: close-touch.has-hover ? #ff6b6b : #888888;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        close-touch := TouchArea {
+                            clicked => {
+                                root.close-popup();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Source text display
+            if root.source-text != "" : Rectangle {
+                height: 36px;
+                background: #2a2a2a;
+                border-radius: 6px;
+
+                HorizontalBox {
+                    padding-left: 10px;
+                    padding-right: 10px;
+
+                    Text {
+                        text: root.source-text;
+                        color: #aaaaaa;
+                        font-size: 13px;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Loading indicator
+            if root.loading : Rectangle {
+                height: 70px;
+                background: #2a2a2a;
+                border-radius: 6px;
+
+                HorizontalBox {
+                    alignment: center;
+
+                    Text {
+                        text: root.i18n-translating;
+                        color: #4a9eff;
+                        font-size: 14px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Error message
+            if root.error-message != "" : Rectangle {
+                background: #3a1515;
+                border-radius: 6px;
+                border-width: 1px;
+                border-color: #5a2020;
+                min-height: 44px;
+
+                HorizontalBox {
+                    padding: 10px;
+
+                    Text {
+                        text: root.error-message;
+                        color: #ff6b6b;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Translation result
+            if !root.loading && root.error-message == "" && root.translated-text != "" : Rectangle {
+                background: #2a2a2a;
+                border-radius: 6px;
+                min-height: 70px;
+
+                VerticalBox {
+                    padding: 10px;
+
+                    Text {
+                        text: root.translated-text;
+                        color: #ffffff;
+                        font-size: 14px;
+                        wrap: word-wrap;
+                    }
+                }
+
+                // Click to apply
+                result-touch := TouchArea {
+                    clicked => {
+                        root.apply-translation();
+                    }
+                }
+            }
+
+            // Action buttons
+            if !root.loading && root.translated-text != "" : HorizontalBox {
+                alignment: end;
+                spacing: 8px;
+                height: 34px;
+
+                // Copy button
+                Rectangle {
+                    width: 70px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: copy-touch.has-hover ? #3a3a3a : #2a2a2a;
+                    border-width: 1px;
+                    border-color: #4a4a4a;
+
+                    Text {
+                        text: root.i18n-copy;
+                        color: #cccccc;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    copy-touch := TouchArea {
+                        clicked => {
+                            root.copy-result();
+                        }
+                    }
+                }
+
+                // Apply button (paste)
+                Rectangle {
+                    width: 80px;
+                    height: 30px;
+                    border-radius: 6px;
+                    background: apply-touch.has-hover ? #3a7bd5 : #4a9eff;
+
+                    Text {
+                        text: root.i18n-apply;
+                        color: #ffffff;
+                        font-size: 12px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    apply-touch := TouchArea {
+                        clicked => {
+                            root.apply-translation();
+                        }
+                    }
+                }
+            }
+
+            // Hint text
+            if !root.loading && root.translated-text != "" : Text {
+                text: root.i18n-hint;
+                color: #555555;
+                font-size: 10px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+}

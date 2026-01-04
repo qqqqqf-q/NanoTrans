@@ -1,0 +1,316 @@
+// NanoTrans Settings Window
+// Clean, unified provider configuration
+
+import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView } from "std-widgets.slint";
+
+export component SettingsWindow inherits Window {
+    title: "NanoTrans Settings";
+    width: 480px;
+    height: 520px;
+    background: #1a1a1a;
+
+    // Properties
+    in-out property <string> hotkey: "Alt+Q";
+    in-out property <int> provider-index: 0;
+    in-out property <string> api-key: "";
+    in-out property <string> api-base: "";
+    in-out property <string> model: "";
+    in property <[string]> provider-names: ["Google Translate", "DeepL", "Zhipu GLM", "OpenAI", "Anthropic", "Custom"];
+    in property <int> provider-type: 0;
+
+    // Language selection
+    in-out property <int> language-index: 0;
+    in property <[string]> language-names: ["Auto", "English", "中文"];
+
+    // I18N text properties
+    in property <string> i18n-title: "Settings";
+    in property <string> i18n-hotkey: "Global Hotkey";
+    in property <string> i18n-provider: "Translation Provider";
+    in property <string> i18n-provider-settings: "Provider Settings";
+    in property <string> i18n-google-hint: "Google Translate - no config needed";
+    in property <string> i18n-deepl-settings: "DeepL Settings";
+    in property <string> i18n-api-key: "API Key";
+    in property <string> i18n-api-key-placeholder: "Enter your API key";
+    in property <string> i18n-deepl-hint: "Get your free API key at deepl.com/pro-api";
+    in property <string> i18n-api-settings: "API Settings";
+    in property <string> i18n-api-base: "API Base URL";
+    in property <string> i18n-model: "Model";
+    in property <string> i18n-model-placeholder: "e.g., gpt-4o-mini";
+    in property <string> i18n-cancel: "Cancel";
+    in property <string> i18n-save: "Save";
+    in property <string> i18n-language: "UI Language";
+
+    // Callbacks
+    callback save-settings();
+    callback cancel-settings();
+    callback provider-selected(int);
+    callback language-selected(int);
+
+    VerticalBox {
+        padding: 20px;
+        spacing: 16px;
+
+        // Title
+        Text {
+            text: root.i18n-title;
+            color: #ffffff;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        // Scrollable content area
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalBox {
+                spacing: 16px;
+                padding-right: 8px;
+
+                // UI Language
+                Rectangle {
+                    background: #252525;
+                    border-radius: 8px;
+                    height: 72px;
+
+                    VerticalBox {
+                        padding: 14px;
+                        spacing: 8px;
+
+                        Text {
+                            text: root.i18n-language;
+                            color: #999999;
+                            font-size: 12px;
+                        }
+
+                        ComboBox {
+                            model: root.language-names;
+                            current-index <=> root.language-index;
+                            selected(val) => {
+                                root.language-selected(root.language-index);
+                            }
+                        }
+                    }
+                }
+
+                // Hotkey
+                Rectangle {
+                    background: #252525;
+                    border-radius: 8px;
+                    height: 72px;
+
+                    VerticalBox {
+                        padding: 14px;
+                        spacing: 8px;
+
+                        Text {
+                            text: root.i18n-hotkey;
+                            color: #999999;
+                            font-size: 12px;
+                        }
+
+                        LineEdit {
+                            text <=> root.hotkey;
+                            placeholder-text: "Alt+Q";
+                        }
+                    }
+                }
+
+                // Provider Selection
+                Rectangle {
+                    background: #252525;
+                    border-radius: 8px;
+                    height: 72px;
+
+                    VerticalBox {
+                        padding: 14px;
+                        spacing: 8px;
+
+                        Text {
+                            text: root.i18n-provider;
+                            color: #999999;
+                            font-size: 12px;
+                        }
+
+                        ComboBox {
+                            model: root.provider-names;
+                            current-index <=> root.provider-index;
+                            selected(val) => {
+                                root.provider-selected(root.provider-index);
+                            }
+                        }
+                    }
+                }
+
+                // Provider Config - Dynamic based on type
+                Rectangle {
+                    background: #252525;
+                    border-radius: 8px;
+                    min-height: 120px;
+
+                    VerticalBox {
+                        padding: 14px;
+                        spacing: 12px;
+
+                        // Google - No config needed
+                        if root.provider-type == 0 : VerticalBox {
+                            spacing: 8px;
+
+                            Text {
+                                text: root.i18n-provider-settings;
+                                color: #999999;
+                                font-size: 12px;
+                            }
+
+                            Rectangle {
+                                background: #1f3a1f;
+                                border-radius: 6px;
+                                height: 44px;
+
+                                HorizontalBox {
+                                    padding: 12px;
+                                    Text {
+                                        text: root.i18n-google-hint;
+                                        color: #6fbf6f;
+                                        font-size: 13px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+
+                        // DeepL - Only API Key
+                        if root.provider-type == 1 : VerticalBox {
+                            spacing: 10px;
+
+                            Text {
+                                text: root.i18n-deepl-settings;
+                                color: #999999;
+                                font-size: 12px;
+                            }
+
+                            VerticalBox {
+                                spacing: 4px;
+                                Text {
+                                    text: root.i18n-api-key;
+                                    color: #bbbbbb;
+                                    font-size: 11px;
+                                }
+                                LineEdit {
+                                    text <=> root.api-key;
+                                    placeholder-text: root.i18n-api-key-placeholder;
+                                    input-type: password;
+                                }
+                            }
+
+                            Text {
+                                text: root.i18n-deepl-hint;
+                                color: #666666;
+                                font-size: 10px;
+                            }
+                        }
+
+                        // LLM Providers (Zhipu, OpenAI, Anthropic, Custom)
+                        if root.provider-type >= 2 : VerticalBox {
+                            spacing: 10px;
+
+                            Text {
+                                text: root.i18n-api-settings;
+                                color: #999999;
+                                font-size: 12px;
+                            }
+
+                            // API Base (only for Custom)
+                            if root.provider-type == 5 : VerticalBox {
+                                spacing: 4px;
+                                Text {
+                                    text: root.i18n-api-base;
+                                    color: #bbbbbb;
+                                    font-size: 11px;
+                                }
+                                LineEdit {
+                                    text <=> root.api-base;
+                                    placeholder-text: "https://api.example.com/v1";
+                                }
+                            }
+
+                            // Model
+                            VerticalBox {
+                                spacing: 4px;
+                                Text {
+                                    text: root.i18n-model;
+                                    color: #bbbbbb;
+                                    font-size: 11px;
+                                }
+                                LineEdit {
+                                    text <=> root.model;
+                                    placeholder-text: root.i18n-model-placeholder;
+                                }
+                            }
+
+                            // API Key
+                            VerticalBox {
+                                spacing: 4px;
+                                Text {
+                                    text: root.i18n-api-key;
+                                    color: #bbbbbb;
+                                    font-size: 11px;
+                                }
+                                LineEdit {
+                                    text <=> root.api-key;
+                                    placeholder-text: root.i18n-api-key-placeholder;
+                                    input-type: password;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Buttons - outside ScrollView so always visible
+        HorizontalBox {
+            alignment: end;
+            spacing: 10px;
+            height: 38px;
+
+            Rectangle {
+                width: 90px;
+                height: 34px;
+                border-radius: 6px;
+                background: cancel-area.has-hover ? #333333 : #2a2a2a;
+
+                Text {
+                    text: root.i18n-cancel;
+                    color: #cccccc;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                cancel-area := TouchArea {
+                    clicked => { root.cancel-settings(); }
+                }
+            }
+
+            Rectangle {
+                width: 90px;
+                height: 34px;
+                border-radius: 6px;
+                background: save-area.has-hover ? #2563eb : #3b82f6;
+
+                Text {
+                    text: root.i18n-save;
+                    color: #ffffff;
+                    font-size: 13px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                save-area := TouchArea {
+                    clicked => { root.save-settings(); }
+                }
+            }
+        }
+    }
+}
