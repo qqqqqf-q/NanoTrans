@@ -8,6 +8,21 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GUITHREADINFO, GUI_CARETBLINKING,
 };
 
+/// Check if our process owns the foreground window
+pub fn is_our_process_foreground() -> bool {
+    unsafe {
+        let foreground = GetForegroundWindow();
+        if foreground.0.is_null() {
+            return false;
+        }
+
+        let mut process_id: u32 = 0;
+        GetWindowThreadProcessId(foreground, Some(&mut process_id));
+
+        process_id == std::process::id()
+    }
+}
+
 /// Get the current caret (text cursor) position in screen coordinates
 /// Falls back to mouse cursor position if caret cannot be detected
 pub fn get_caret_position() -> (i32, i32) {

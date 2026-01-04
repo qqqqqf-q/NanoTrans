@@ -175,8 +175,10 @@ fn main() -> Result<()> {
     let rt_timer = Arc::clone(&rt);
     let settings_window_timer = Rc::clone(&settings_window);
     let shared_state_menu = Arc::clone(&shared_state);
-    let popup_weak_focus = popup_weak.clone();
-    let shared_state_focus = Arc::clone(&shared_state);
+    let popup_weak_ctrlv = popup_weak.clone();
+
+    // 启动键盘监控（监控 Ctrl+V）
+    input::start_keyboard_monitor();
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
@@ -200,9 +202,14 @@ fn main() -> Result<()> {
             }
         }
 
-        // 注意：Slint 在所有窗口隐藏后会退出事件循环
-        // 因此不能使用自动焦点检测来隐藏窗口
-        // 用户需要手动关闭窗口（点击 X 或按 Escape）
+        // 检测 Ctrl+V，用户粘贴后自动关闭窗口
+        if input::check_ctrl_v_pressed() {
+            if let Some(popup) = popup_weak_ctrlv.upgrade() {
+                if popup.window().is_visible() {
+                    popup.hide().ok();
+                }
+            }
+        }
     });
 
     // 使用 run_event_loop_until_quit 让程序在所有窗口关闭后继续运行
