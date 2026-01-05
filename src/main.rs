@@ -375,14 +375,19 @@ fn handle_translate_hotkey(
 
     shared_state.lock().unwrap().original_clipboard = original_clipboard;
 
-    let (x, y) = caret::get_caret_position();
+    let (cursor_x, cursor_y) = caret::get_caret_position();
 
     if let Some(popup) = popup_weak.upgrade() {
         popup.set_source_text(SharedString::from(&selected_text));
         popup.set_translated_text(SharedString::new());
         popup.set_error_message(SharedString::new());
         popup.set_loading(true);
-        popup.window().set_position(PhysicalPosition::new(x, y + 20));
+
+        // 计算窗口位置：居中于鼠标上方，并确保不超出屏幕
+        let popup_width = 420;  // 与 popup.slint 中定义的宽度一致
+        let popup_height = 200; // 预估高度
+        let (x, y) = caret::calculate_popup_position(cursor_x, cursor_y, popup_width, popup_height);
+        popup.window().set_position(PhysicalPosition::new(x, y));
         popup.show().ok();
 
         // 记录窗口显示时间，用于焦点检测保护期

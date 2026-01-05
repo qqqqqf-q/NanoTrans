@@ -5,8 +5,56 @@ use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::ClientToScreen;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetCursorPos, GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId,
-    GUITHREADINFO, GUI_CARETBLINKING,
+    GetSystemMetrics, GUITHREADINFO, GUI_CARETBLINKING,
+    SM_CXSCREEN, SM_CYSCREEN,
 };
+
+/// Get screen dimensions (width, height)
+pub fn get_screen_size() -> (i32, i32) {
+    unsafe {
+        let width = GetSystemMetrics(SM_CXSCREEN);
+        let height = GetSystemMetrics(SM_CYSCREEN);
+        (width, height)
+    }
+}
+
+/// Calculate optimal popup position
+/// Returns (x, y) position that:
+/// - Centers the popup horizontally above the cursor
+/// - Ensures the popup stays within screen bounds
+pub fn calculate_popup_position(
+    cursor_x: i32,
+    cursor_y: i32,
+    popup_width: i32,
+    popup_height: i32,
+) -> (i32, i32) {
+    let (screen_width, screen_height) = get_screen_size();
+
+    // 窗口水平居中于鼠标位置
+    let mut x = cursor_x - popup_width / 2;
+    // 窗口显示在鼠标上方（留 10px 间距）
+    let mut y = cursor_y - popup_height - 10;
+
+    // 检查左边界
+    if x < 0 {
+        x = 0;
+    }
+    // 检查右边界
+    if x + popup_width > screen_width {
+        x = screen_width - popup_width;
+    }
+
+    // 检查上边界：如果上方空间不够，则显示在鼠标下方
+    if y < 0 {
+        y = cursor_y + 20;
+    }
+    // 检查下边界
+    if y + popup_height > screen_height {
+        y = screen_height - popup_height;
+    }
+
+    (x, y)
+}
 
 /// Check if our process owns the foreground window
 pub fn is_our_process_foreground() -> bool {
