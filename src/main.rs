@@ -319,7 +319,9 @@ fn open_settings_window(
             // Save language setting
             state.config.ui_language = i18n::index_to_language(w.get_language_index());
 
-            let _ = state.config.save();
+            if let Err(e) = state.config.save() {
+                eprintln!("Failed to save config: {}", e);
+            }
             w.hide().ok();
         }
         *settings_window_save.borrow_mut() = None;
