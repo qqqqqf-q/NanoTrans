@@ -2,13 +2,14 @@
 // A minimal, frameless popup window for displaying translations
 
 import { VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
+import { Theme } from "./theme.slint";
 
 export component TranslatePopup inherits Window {
     // Window properties
     no-frame: true;
     always-on-top: true;
-    width: 420px;
-    min-height: 180px;
+    width: 460px; // Slightly wider for better spacing
+    min-height: 200px;
     background: transparent;
 
     // Input properties
@@ -36,8 +37,6 @@ export component TranslatePopup inherits Window {
 
     // 拖动状态
     property <bool> dragging: false;
-    property <length> drag-start-x;
-    property <length> drag-start-y;
 
     // Main container with rounded corners and shadow effect
     Rectangle {

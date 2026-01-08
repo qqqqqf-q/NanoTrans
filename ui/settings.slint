@@ -2,12 +2,13 @@
 // Clean, unified provider configuration
 
 import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView } from "std-widgets.slint";
+import { Theme } from "./theme.slint";
 
 export component SettingsWindow inherits Window {
     title: "NanoTrans Settings";
-    width: 480px;
-    height: 580px;
-    background: #1a1a1a;
+    width: 600px;
+    height: 700px;
+    background: Theme.background-main;
 
     // Properties
     in-out property <string> hotkey: "Alt+Q";
@@ -47,14 +48,14 @@ export component SettingsWindow inherits Window {
     callback language-selected(int);
 
     VerticalBox {
-        padding: 20px;
-        spacing: 16px;
+        padding: Theme.padding-large;
+        spacing: Theme.padding-medium;
 
         // Title
         Text {
             text: root.i18n-title;
-            color: #ffffff;
-            font-size: 22px;
+            color: Theme.text-primary;
+            font-size: Theme.font-size-large;
             font-weight: 700;
         }
 
@@ -62,22 +63,24 @@ export component SettingsWindow inherits Window {
             viewport-height: content.preferred-height;
             
             content := VerticalBox {
-                spacing: 16px;
+                spacing: Theme.padding-medium;
 
                 // UI Language
                 Rectangle {
-                    background: #252525;
-                    border-radius: 8px;
-                    height: 72px;
+                    background: #FFFFFF05; // Glass effect
+                    border-radius: Theme.radius-medium;
+                    border-width: 1px;
+                    border-color: Theme.border-subtle;
+                    height: 80px;
 
                     VerticalBox {
-                        padding: 14px;
-                        spacing: 8px;
+                        padding: Theme.padding-medium;
+                        spacing: Theme.padding-small;
 
                         Text {
                             text: root.i18n-language;
-                            color: #999999;
-                            font-size: 12px;
+                            color: Theme.text-secondary;
+                            font-size: Theme.font-size-small;
                         }
 
                         ComboBox {
@@ -92,18 +95,20 @@ export component SettingsWindow inherits Window {
 
                 // Hotkey
                 Rectangle {
-                    background: #252525;
-                    border-radius: 8px;
-                    height: 72px;
+                    background: #FFFFFF05;
+                    border-radius: Theme.radius-medium;
+                    border-width: 1px;
+                    border-color: Theme.border-subtle;
+                    height: 80px;
 
                     VerticalBox {
-                        padding: 14px;
-                        spacing: 8px;
+                        padding: Theme.padding-medium;
+                        spacing: Theme.padding-small;
 
                         Text {
                             text: root.i18n-hotkey;
-                            color: #999999;
-                            font-size: 12px;
+                            color: Theme.text-secondary;
+                            font-size: Theme.font-size-small;
                         }
 
                         LineEdit {
@@ -115,18 +120,20 @@ export component SettingsWindow inherits Window {
 
                 // Provider Selection
                 Rectangle {
-                    background: #252525;
-                    border-radius: 8px;
-                    height: 72px;
+                    background: #FFFFFF05;
+                    border-radius: Theme.radius-medium;
+                    border-width: 1px;
+                    border-color: Theme.border-subtle;
+                    height: 80px;
 
                     VerticalBox {
-                        padding: 14px;
-                        spacing: 8px;
+                        padding: Theme.padding-medium;
+                        spacing: Theme.padding-small;
 
                         Text {
                             text: root.i18n-provider;
-                            color: #999999;
-                            font-size: 12px;
+                            color: Theme.text-secondary;
+                            font-size: Theme.font-size-small;
                         }
 
                         ComboBox {
@@ -141,35 +148,39 @@ export component SettingsWindow inherits Window {
 
                 // Provider Config - Dynamic based on type
                 Rectangle {
-                    background: #252525;
-                    border-radius: 8px;
+                    background: #FFFFFF05;
+                    border-radius: Theme.radius-medium;
+                    border-width: 1px;
+                    border-color: Theme.border-subtle;
                     vertical-stretch: 1;
 
                     VerticalBox {
-                        padding: 14px;
-                        spacing: 12px;
+                        padding: Theme.padding-medium;
+                        spacing: Theme.padding-medium;
 
                         // Google - No config needed
                         if root.provider-type == 0 : VerticalBox {
-                            spacing: 8px;
+                            spacing: Theme.padding-small;
 
                             Text {
                                 text: root.i18n-provider-settings;
-                                color: #999999;
-                                font-size: 12px;
+                                color: Theme.text-secondary;
+                                font-size: Theme.font-size-small;
                             }
 
                             Rectangle {
-                                background: #1f3a1f;
-                                border-radius: 6px;
-                                height: 44px;
+                                background: #FFFFFF05;
+                                border-radius: Theme.radius-small;
+                                height: 50px;
+                                border-width: 1px;
+                                border-color: Theme.accent-primary;
 
                                 HorizontalBox {
-                                    padding: 12px;
+                                    padding: Theme.padding-small;
                                     Text {
                                         text: root.i18n-google-hint;
-                                        color: #6fbf6f;
-                                        font-size: 13px;
+                                        color: Theme.accent-hover;
+                                        font-size: Theme.font-size-body;
                                         vertical-alignment: center;
                                     }
                                 }
@@ -178,19 +189,19 @@ export component SettingsWindow inherits Window {
 
                         // DeepL - Only API Key
                         if root.provider-type == 1 : VerticalBox {
-                            spacing: 10px;
+                            spacing: 12px;
 
                             Text {
                                 text: root.i18n-deepl-settings;
-                                color: #999999;
-                                font-size: 12px;
+                                color: Theme.text-secondary;
+                                font-size: Theme.font-size-small;
                             }
 
                             VerticalBox {
                                 spacing: 4px;
                                 Text {
                                     text: root.i18n-api-key;
-                                    color: #bbbbbb;
+                                    color: Theme.text-placeholder;
                                     font-size: 11px;
                                 }
                                 LineEdit {
@@ -202,19 +213,19 @@ export component SettingsWindow inherits Window {
 
                             Text {
                                 text: root.i18n-deepl-hint;
-                                color: #666666;
+                                color: Theme.text-placeholder;
                                 font-size: 10px;
                             }
                         }
 
                         // LLM Providers (Zhipu, OpenAI, Anthropic, Custom)
                         if root.provider-type >= 2 : VerticalBox {
-                            spacing: 10px;
+                            spacing: 12px;
 
                             Text {
                                 text: root.i18n-api-settings;
-                                color: #999999;
-                                font-size: 12px;
+                                color: Theme.text-secondary;
+                                font-size: Theme.font-size-small;
                             }
 
                             // API Base (only for Custom)
@@ -222,7 +233,7 @@ export component SettingsWindow inherits Window {
                                 spacing: 4px;
                                 Text {
                                     text: root.i18n-api-base;
-                                    color: #bbbbbb;
+                                    color: Theme.text-placeholder;
                                     font-size: 11px;
                                 }
                                 LineEdit {
@@ -236,7 +247,7 @@ export component SettingsWindow inherits Window {
                                 spacing: 4px;
                                 Text {
                                     text: root.i18n-model;
-                                    color: #bbbbbb;
+                                    color: Theme.text-placeholder;
                                     font-size: 11px;
                                 }
                                 LineEdit {
@@ -250,7 +261,7 @@ export component SettingsWindow inherits Window {
                                 spacing: 4px;
                                 Text {
                                     text: root.i18n-api-key;
-                                    color: #bbbbbb;
+                                    color: Theme.text-placeholder;
                                     font-size: 11px;
                                 }
                                 LineEdit {
@@ -268,19 +279,22 @@ export component SettingsWindow inherits Window {
         // Buttons
         HorizontalBox {
             alignment: end;
-            spacing: 10px;
-            height: 38px;
+            spacing: Theme.padding-small;
+            height: 44px;
 
             Rectangle {
-                width: 90px;
-                height: 34px;
-                border-radius: 6px;
-                background: cancel-area.has-hover ? #333333 : #2a2a2a;
+                width: 100px;
+                height: 40px;
+                border-radius: Theme.radius-small;
+                background: cancel-area.has-hover ? Theme.background-overlay : transparent;
+                border-width: 1px;
+                border-color: Theme.border-subtle;
+                animate background { duration: 150ms; }
 
                 Text {
                     text: root.i18n-cancel;
-                    color: #cccccc;
-                    font-size: 13px;
+                    color: Theme.text-secondary;
+                    font-size: Theme.font-size-body;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -291,15 +305,16 @@ export component SettingsWindow inherits Window {
             }
 
             Rectangle {
-                width: 90px;
-                height: 34px;
-                border-radius: 6px;
-                background: save-area.has-hover ? #2563eb : #3b82f6;
+                width: 100px;
+                height: 40px;
+                border-radius: Theme.radius-small;
+                background: save-area.has-hover ? Theme.accent-hover : Theme.accent-primary;
+                animate background { duration: 150ms; }
 
                 Text {
                     text: root.i18n-save;
-                    color: #ffffff;
-                    font-size: 13px;
+                    color: #FFFFFF;
+                    font-size: Theme.font-size-body;
                     font-weight: 600;
                     horizontal-alignment: center;
                     vertical-alignment: center;
