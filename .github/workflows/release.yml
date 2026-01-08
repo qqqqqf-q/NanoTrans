@@ -1,0 +1,72 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # 1. 签出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 安装 Rust 稳定版工具链
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      # 3. 缓存 Cargo 依赖（加速构建）
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # 4. 执行 Release 编译
+      - name: Build release
+        run: cargo build --release
+
+      # 5. 删除旧的 latest release（如果存在）
+      - name: Delete existing latest release
+        uses: cb80/delrel@latest
+        with:
+          tag: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 6. 删除旧的 latest tag（如果存在）
+      - name: Delete existing latest tag
+        run: |
+          git push origin :refs/tags/latest || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 7. 创建/更新 latest release 并上传二进制文件
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          body: |
+            This is an automated rolling release.
+
+            **Commit:** ${{ github.sha }}
+            **Build Time:** ${{ github.event.head_commit.timestamp }}
+
+            Download `nanotrans.exe` below to get the latest version.
+          draft: false
+          prerelease: false
+          files: target/release/nanotrans.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
