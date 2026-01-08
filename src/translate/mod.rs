@@ -37,6 +37,11 @@ impl Translator {
 
     /// Translate text using the active provider
     pub async fn translate(&self, text: &str) -> Result<TranslateResponse> {
+        // 验证输入
+        if text.trim().is_empty() {
+            anyhow::bail!("Cannot translate empty text");
+        }
+
         let provider = self.config.active_provider()
             .ok_or_else(|| anyhow::anyhow!("No active provider configured"))?;
 
@@ -189,16 +194,14 @@ impl Translator {
             content: String,
         }
 
-        let system_prompt = format!(
-            "You are a professional translator. Translate the following text to {}. Only output the translation, nothing else.",
-            get_language_name(&request.target_lang)
-        );
+        let system_prompt = get_translation_system_prompt(&request.target_lang);
+        let user_prompt = get_translation_user_prompt(&request.target_lang, &request.text);
 
         let openai_req = OpenAIRequest {
             model: provider.model.clone(),
             messages: vec![
                 OpenAIMessage { role: "system".to_string(), content: system_prompt },
-                OpenAIMessage { role: "user".to_string(), content: request.text.clone() },
+                OpenAIMessage { role: "user".to_string(), content: user_prompt },
             ],
             temperature: 0.3,
         };
@@ -252,16 +255,14 @@ impl Translator {
             text: String,
         }
 
-        let system_prompt = format!(
-            "You are a professional translator. Translate the following text to {}. Only output the translation, nothing else.",
-            get_language_name(&request.target_lang)
-        );
+        let system_prompt = get_translation_system_prompt(&request.target_lang);
+        let user_prompt = get_translation_user_prompt(&request.target_lang, &request.text);
 
         let anthropic_req = AnthropicRequest {
             model: provider.model.clone(),
             max_tokens: 4096,
             system: system_prompt,
-            messages: vec![AnthropicMessage { role: "user".to_string(), content: request.text.clone() }],
+            messages: vec![AnthropicMessage { role: "user".to_string(), content: user_prompt }],
         };
 
         let url = format!("{}/v1/messages", provider.api_base.trim_end_matches('/'));
@@ -285,16 +286,44 @@ impl Translator {
     }
 }
 
-fn get_language_name(code: &str) -> &'static str {
+fn get_language_name(code: &str) -> String {
     match code.to_lowercase().as_str() {
-        "zh" | "zh-cn" => "Chinese (Simplified)",
-        "en" => "English",
-        "ja" => "Japanese",
-        "ko" => "Korean",
-        "fr" => "French",
-        "de" => "German",
-        "es" => "Spanish",
-        "ru" => "Russian",
-        _ => "English",
+        "zh" | "zh-cn" => "简体中文".to_string(),
+        "zh-tw" | "zh-hk" => "繁體中文".to_string(),
+        "en" => "English".to_string(),
+        "ja" => "日本語".to_string(),
+        "ko" => "한국어".to_string(),
+        "fr" => "Français".to_string(),
+        "de" => "Deutsch".to_string(),
+        "es" => "Español".to_string(),
+        "ru" => "Русский".to_string(),
+        "pt" => "Português".to_string(),
+        "it" => "Italiano".to_string(),
+        "ar" => "العربية".to_string(),
+        "th" => "ไทย".to_string(),
+        "vi" => "Tiếng Việt".to_string(),
+        _ => code.to_string(), // 未知语言代码直接返回原值
     }
+}
+
+/// 生成翻译系统提示词
+fn get_translation_system_prompt(target_lang: &str) -> String {
+    let lang_name = get_language_name(target_lang);
+    format!(
+        r#"你是一位专业的 {} 母语翻译者，需要流畅地将文本翻译成 {}。
+
+## 翻译规则
+1. 仅输出翻译内容，不要包含解释或其他额外内容（例如"翻译如下："或"以下是翻译："等）
+2. 返回的翻译必须保持与原文完全相同的段落数和格式
+3. 如果文本包含 HTML 标签，在保持流畅性的同时，请考虑标签在翻译中的位置
+4. 对于不应翻译的内容（如专有名词、代码等），请保留原文
+5. 直接输出翻译（无分隔符，无额外文本）"#,
+        lang_name, lang_name
+    )
+}
+
+/// 生成翻译用户提示词
+fn get_translation_user_prompt(target_lang: &str, text: &str) -> String {
+    let lang_name = get_language_name(target_lang);
+    format!("翻译成 {}（仅输出翻译）：\n\n{}", lang_name, text)
 }
