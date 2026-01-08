@@ -19,7 +19,7 @@ jobs:
 
       # 2. 安装 Rust 稳定版工具链
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       # 3. 缓存 Cargo 依赖（加速构建）
       - name: Cache Cargo registry
