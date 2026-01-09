@@ -387,6 +387,13 @@ fn handle_translate_hotkey(
         let popup_width = 420;  // 与 popup.slint 中定义的宽度一致
         let popup_height = 200; // 预估高度
         let (x, y) = caret::calculate_popup_position(cursor_x, cursor_y, popup_width, popup_height);
+        // Sync provider index from config
+        let provider_idx = {
+            let state = shared_state.lock().unwrap();
+            state.config.provider_index(&state.config.active_provider_id).unwrap_or(0) as i32
+        };
+        popup.set_current_provider_index(provider_idx);
+
         popup.window().set_position(PhysicalPosition::new(x, y));
         popup.show().ok();
 

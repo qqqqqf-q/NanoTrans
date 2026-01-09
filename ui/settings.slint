@@ -6,7 +6,7 @@ import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView } from "std-
 export component SettingsWindow inherits Window {
     title: "NanoTrans Settings";
     width: 480px;
-    height: 520px;
+    height: 580px;
     background: #1a1a1a;
 
     // Properties
@@ -58,13 +58,11 @@ export component SettingsWindow inherits Window {
             font-weight: 700;
         }
 
-        // Scrollable content area
         ScrollView {
-            vertical-stretch: 1;
-
-            VerticalBox {
+            viewport-height: content.preferred-height;
+            
+            content := VerticalBox {
                 spacing: 16px;
-                padding-right: 8px;
 
                 // UI Language
                 Rectangle {
@@ -145,7 +143,7 @@ export component SettingsWindow inherits Window {
                 Rectangle {
                     background: #252525;
                     border-radius: 8px;
-                    min-height: 120px;
+                    vertical-stretch: 1;
 
                     VerticalBox {
                         padding: 14px;
@@ -267,7 +265,7 @@ export component SettingsWindow inherits Window {
             }
         }
 
-        // Buttons - outside ScrollView so always visible
+        // Buttons
         HorizontalBox {
             alignment: end;
             spacing: 10px;
