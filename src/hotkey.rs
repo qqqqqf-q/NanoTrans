@@ -15,6 +15,7 @@ pub struct HotkeyManager {
     manager: GlobalHotKeyManager,
     translate_hotkey: HotKey,
     translate_hotkey_id: u32,
+    current_hotkey: String,
 }
 
 impl HotkeyManager {
@@ -31,6 +32,7 @@ impl HotkeyManager {
             manager,
             translate_hotkey: hotkey,
             translate_hotkey_id: hotkey_id,
+            current_hotkey: hotkey_str.to_lowercase(),
         })
     }
 
@@ -41,14 +43,21 @@ impl HotkeyManager {
 
     /// Update the hotkey binding
     pub fn update_hotkey(&mut self, hotkey_str: &str) -> Result<()> {
-        // Unregister old hotkey
+        let normalized = hotkey_str.to_lowercase();
+        // Already bound, skip churn
+        if normalized == self.current_hotkey {
+            return Ok(());
+        }
+
+        let new_hotkey = parse_hotkey(hotkey_str)?;
+        // Register new first to avoid losing old binding on failure
+        self.manager.register(new_hotkey)?;
+        // Safe to drop old one now
         self.manager.unregister(self.translate_hotkey)?;
 
-        // Parse and register new hotkey
-        let new_hotkey = parse_hotkey(hotkey_str)?;
         self.translate_hotkey_id = new_hotkey.id();
-        self.manager.register(new_hotkey)?;
         self.translate_hotkey = new_hotkey;
+        self.current_hotkey = normalized;
 
         Ok(())
     }
@@ -81,6 +90,10 @@ pub fn parse_hotkey(hotkey_str: &str) -> Result<HotKey> {
                 key_code = Some(parse_key_code(key)?);
             }
         }
+    }
+
+    if modifiers.is_empty() {
+        anyhow::bail!("Hotkey must include at least one modifier");
     }
 
     let code = key_code.ok_or_else(|| anyhow::anyhow!("No key specified in hotkey"))?;

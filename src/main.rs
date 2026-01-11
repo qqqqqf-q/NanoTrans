@@ -33,10 +33,27 @@ struct SharedState {
 
 fn main() -> Result<()> {
     // Load configuration
-    let config = Config::load().unwrap_or_default();
+    let mut config = Config::load().unwrap_or_default();
 
     // Initialize i18n
     i18n::init(&config.ui_language);
+
+    // Prepare hotkey manager (fallback to default on invalid config)
+    let hotkey_manager_inner = match HotkeyManager::new(&config.hotkey) {
+        Ok(manager) => manager,
+        Err(e) => {
+            eprintln!(
+                "注册全局快捷键失败({})，回退到默认 {}",
+                e,
+                hotkey::DEFAULT_HOTKEY
+            );
+            config.hotkey = hotkey::DEFAULT_HOTKEY.to_string();
+            if let Err(save_err) = config.save() {
+                eprintln!("写入默认快捷键失败: {}", save_err);
+            }
+            HotkeyManager::new(&config.hotkey)?
+        }
+    };
 
     // Create shared state
     let shared_state = Arc::new(Mutex::new(SharedState {
@@ -66,7 +83,7 @@ fn main() -> Result<()> {
     let _tray = tray::create_tray()?;
 
     // Register global hotkey
-    let hotkey_manager = Arc::new(HotkeyManager::new(&config.hotkey)?);
+    let hotkey_manager = Arc::new(Mutex::new(hotkey_manager_inner));
 
     // Create async runtime
     let rt = Arc::new(
@@ -148,9 +165,10 @@ fn main() -> Result<()> {
     // Handle open settings from popup
     let shared_state_settings = Arc::clone(&shared_state);
     let settings_window_popup = Rc::clone(&settings_window);
+    let hotkey_manager_popup = Arc::clone(&hotkey_manager);
     popup.on_open_settings({
         move || {
-            open_settings_window(&shared_state_settings, &settings_window_popup);
+            open_settings_window(&shared_state_settings, &settings_window_popup, &hotkey_manager_popup);
         }
     });
 
@@ -174,7 +192,9 @@ fn main() -> Result<()> {
     let hotkey_manager_timer = Arc::clone(&hotkey_manager);
     let rt_timer = Arc::clone(&rt);
     let settings_window_timer = Rc::clone(&settings_window);
+    let settings_window_capture = Rc::clone(&settings_window);
     let shared_state_menu = Arc::clone(&shared_state);
+    let hotkey_manager_menu = Arc::clone(&hotkey_manager);
     let popup_weak_ctrlv = popup_weak.clone();
 
     // 启动键盘监控（监控 Ctrl+V）
@@ -185,8 +205,10 @@ fn main() -> Result<()> {
         // Check for hotkey events
         let hotkey_rx = hotkey::hotkey_event_receiver();
         if let Ok(event) = hotkey_rx.try_recv() {
-            if hotkey_manager_timer.is_translate_hotkey(&event) {
-                handle_translate_hotkey(&popup_weak_timer, &shared_state_timer, &rt_timer);
+            if let Ok(manager) = hotkey_manager_timer.lock() {
+                if manager.is_translate_hotkey(&event) {
+                    handle_translate_hotkey(&popup_weak_timer, &shared_state_timer, &rt_timer);
+                }
             }
         }
 
@@ -195,7 +217,7 @@ fn main() -> Result<()> {
         if let Ok(event) = menu_rx.try_recv() {
             match tray::handle_menu_event(&event) {
                 tray::MenuAction::OpenSettings => {
-                    open_settings_window(&shared_state_menu, &settings_window_timer);
+                    open_settings_window(&shared_state_menu, &settings_window_timer, &hotkey_manager_menu);
                 }
                 tray::MenuAction::Exit => std::process::exit(0),
                 tray::MenuAction::None => {}
@@ -207,6 +229,24 @@ fn main() -> Result<()> {
             if let Some(popup) = popup_weak_ctrlv.upgrade() {
                 if popup.window().is_visible() {
                     popup.hide().ok();
+                }
+            }
+        }
+
+        // Check for captured hotkey in settings window
+        if let Some(ref win) = *settings_window_capture.borrow() {
+            if win.get_hotkey_recording() {
+                if let Some(polled) = input::poll_hotkey_capture() {
+                    win.set_hotkey_recording(false);
+                    if !polled.is_empty() {
+                        win.set_hotkey(SharedString::from(&polled));
+                    }
+                }
+                if let Some(captured) = input::get_captured_hotkey() {
+                    win.set_hotkey_recording(false);
+                    if !captured.is_empty() {
+                        win.set_hotkey(SharedString::from(&captured));
+                    }
                 }
             }
         }
@@ -222,9 +262,12 @@ fn main() -> Result<()> {
 fn open_settings_window(
     shared_state: &Arc<Mutex<SharedState>>,
     settings_window: &Rc<RefCell<Option<SettingsWindow>>>,
+    hotkey_manager: &Arc<Mutex<HotkeyManager>>,
 ) {
     if settings_window.borrow().is_some() {
         if let Some(ref win) = *settings_window.borrow() {
+            win.set_hotkey_recording(false);
+            input::stop_hotkey_capture();
             win.show().ok();
             return;
         }
@@ -234,6 +277,9 @@ fn open_settings_window(
         Ok(w) => w,
         Err(e) => { eprintln!("Failed to create settings: {}", e); return; }
     };
+
+    win.set_hotkey_recording(false);
+    input::stop_hotkey_capture();
 
     // Set i18n texts
     set_settings_i18n_texts(&win);
@@ -299,29 +345,62 @@ fn open_settings_window(
         }
     });
 
+    // Handle hotkey capture - just start capture mode
+    let win_weak_hotkey = win.as_weak();
+    win.on_start_hotkey_capture(move || {
+        if let Some(w) = win_weak_hotkey.upgrade() {
+            w.set_hotkey_recording(true);
+            input::start_hotkey_capture();
+        }
+    });
+
     // Handle save
     let shared_state_save = Arc::clone(shared_state);
     let settings_window_save = Rc::clone(settings_window);
+    let hotkey_manager_save = Arc::clone(hotkey_manager);
     let win_weak_save = win.as_weak();
     win.on_save_settings(move || {
         if let Some(w) = win_weak_save.upgrade() {
-            let mut state = shared_state_save.lock().unwrap();
-            state.config.hotkey = w.get_hotkey().to_string();
+            let new_hotkey = w.get_hotkey().to_string();
+            let mut config = {
+                let state = shared_state_save.lock().unwrap();
+                state.config.clone()
+            };
+            let original_hotkey = config.hotkey.clone();
+            config.hotkey = new_hotkey;
 
             let idx = w.get_provider_index() as usize;
-            if let Some(p) = state.config.providers.get_mut(idx) {
+            if let Some(p) = config.providers.get_mut(idx) {
                 p.api_key = w.get_api_key().to_string();
                 p.api_base = w.get_api_base().to_string();
                 p.model = w.get_model().to_string();
-                state.config.active_provider_id = p.id.clone();
+                config.active_provider_id = p.id.clone();
             }
 
             // Save language setting
-            state.config.ui_language = i18n::index_to_language(w.get_language_index());
+            config.ui_language = i18n::index_to_language(w.get_language_index());
 
-            if let Err(e) = state.config.save() {
+            let hotkey_result = hotkey_manager_save
+                .lock()
+                .map_err(|e| format!("hotkey manager unavailable: {}", e))
+                .and_then(|mut mgr| mgr.update_hotkey(&config.hotkey).map_err(|e| e.to_string()));
+
+            if let Err(err) = hotkey_result {
+                eprintln!("更新全局快捷键失败: {}", err);
+                config.hotkey = original_hotkey;
+                w.set_hotkey(SharedString::from(&config.hotkey));
+            }
+
+            if let Err(e) = config.save() {
                 eprintln!("Failed to save config: {}", e);
             }
+
+            if let Ok(mut state) = shared_state_save.lock() {
+                state.config = config;
+            }
+
+            w.set_hotkey_recording(false);
+            input::stop_hotkey_capture();
             w.hide().ok();
         }
         *settings_window_save.borrow_mut() = None;
@@ -337,7 +416,11 @@ fn open_settings_window(
         i18n::init(&state.config.ui_language);
         drop(state);
 
-        if let Some(w) = win_weak_cancel.upgrade() { w.hide().ok(); }
+        input::stop_hotkey_capture();
+        if let Some(w) = win_weak_cancel.upgrade() {
+            w.set_hotkey_recording(false);
+            w.hide().ok();
+        }
         *settings_window_cancel.borrow_mut() = None;
     });
 
@@ -443,6 +526,8 @@ fn set_settings_i18n_texts(win: &SettingsWindow) {
     let t = i18n::t();
     win.set_i18n_title(SharedString::from(t.settings_title));
     win.set_i18n_hotkey(SharedString::from(t.global_hotkey));
+    win.set_i18n_hotkey_placeholder(SharedString::from(t.hotkey_placeholder));
+    win.set_i18n_hotkey_recording(SharedString::from(t.hotkey_recording));
     win.set_i18n_provider(SharedString::from(t.translation_provider));
     win.set_i18n_provider_settings(SharedString::from(t.provider_settings));
     win.set_i18n_google_hint(SharedString::from(t.google_no_config));
@@ -458,4 +543,3 @@ fn set_settings_i18n_texts(win: &SettingsWindow) {
     win.set_i18n_save(SharedString::from(t.save));
     win.set_i18n_language(SharedString::from(t.ui_language));
 }
-

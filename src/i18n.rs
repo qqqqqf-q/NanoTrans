@@ -19,6 +19,8 @@ pub struct Texts {
     // Settings window
     pub settings_title: &'static str,
     pub global_hotkey: &'static str,
+    pub hotkey_placeholder: &'static str,
+    pub hotkey_recording: &'static str,
     pub translation_provider: &'static str,
     pub provider_settings: &'static str,
     pub google_no_config: &'static str,
@@ -49,6 +51,8 @@ pub struct Texts {
 const TEXTS_EN: Texts = Texts {
     settings_title: "Settings",
     global_hotkey: "Global Hotkey",
+    hotkey_placeholder: "Click and press keys...",
+    hotkey_recording: "Press hotkey...",
     translation_provider: "Translation Provider",
     provider_settings: "Provider Settings",
     google_no_config: "Google Translate - no config needed",
@@ -77,6 +81,8 @@ const TEXTS_EN: Texts = Texts {
 const TEXTS_ZH: Texts = Texts {
     settings_title: "设置",
     global_hotkey: "全局快捷键",
+    hotkey_placeholder: "点击后按下快捷键...",
+    hotkey_recording: "请按下快捷键...",
     translation_provider: "翻译服务",
     provider_settings: "服务设置",
     google_no_config: "Google 翻译 - 无需配置",

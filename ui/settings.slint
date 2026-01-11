@@ -4,6 +4,44 @@
 import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView } from "std-widgets.slint";
 import { Theme } from "./theme.slint";
 
+// Hotkey input component - displays hotkey and triggers recording via Rust
+component HotkeyInput inherits Rectangle {
+    in-out property <string> hotkey: "Alt+Q";
+    in property <string> placeholder: "Click to record...";
+    in property <string> recording-text: "Press hotkey...";
+    in-out property <bool> is-recording: false;
+
+    callback clicked();
+
+    height: 32px;
+    background: Theme.background-input;
+    border-radius: Theme.radius-small;
+    border-width: 1px;
+    border-color: is-recording ? Theme.accent-primary : (touch.has-hover ? Theme.border-focus : Theme.border-subtle);
+
+    animate border-color { duration: 150ms; }
+    animate background { duration: 150ms; }
+
+    HorizontalBox {
+        padding-left: 12px;
+        padding-right: 12px;
+
+        Text {
+            text: is-recording ? recording-text : (hotkey != "" ? hotkey : placeholder);
+            color: is-recording ? Theme.accent-hover : (hotkey != "" ? Theme.text-primary : Theme.text-placeholder);
+            font-size: Theme.font-size-body;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 export component SettingsWindow inherits Window {
     title: "NanoTrans Settings";
     width: 600px;
@@ -12,6 +50,7 @@ export component SettingsWindow inherits Window {
 
     // Properties
     in-out property <string> hotkey: "Alt+Q";
+    in-out property <bool> hotkey-recording: false;
     in-out property <int> provider-index: 0;
     in-out property <string> api-key: "";
     in-out property <string> api-base: "";
@@ -26,6 +65,8 @@ export component SettingsWindow inherits Window {
     // I18N text properties
     in property <string> i18n-title: "Settings";
     in property <string> i18n-hotkey: "Global Hotkey";
+    in property <string> i18n-hotkey-placeholder: "Click and press keys...";
+    in property <string> i18n-hotkey-recording: "Press hotkey...";
     in property <string> i18n-provider: "Translation Provider";
     in property <string> i18n-provider-settings: "Provider Settings";
     in property <string> i18n-google-hint: "Google Translate - no config needed";
@@ -46,6 +87,7 @@ export component SettingsWindow inherits Window {
     callback cancel-settings();
     callback provider-selected(int);
     callback language-selected(int);
+    callback start-hotkey-capture();
 
     VerticalBox {
         padding: Theme.padding-large;
@@ -111,9 +153,14 @@ export component SettingsWindow inherits Window {
                             font-size: Theme.font-size-small;
                         }
 
-                        LineEdit {
-                            text <=> root.hotkey;
-                            placeholder-text: "Alt+Q";
+                        hotkey-input := HotkeyInput {
+                            hotkey <=> root.hotkey;
+                            is-recording <=> root.hotkey-recording;
+                            placeholder: root.i18n-hotkey-placeholder;
+                            recording-text: root.i18n-hotkey-recording;
+                            clicked => {
+                                root.start-hotkey-capture();
+                            }
                         }
                     }
                 }
