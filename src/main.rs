@@ -310,8 +310,10 @@ fn open_settings_window(
         "OpenAI".into(), "Anthropic".into(), "Custom".into(),
     ];
     win.set_provider_names(ModelRc::new(VecModel::from(provider_names)));
-    win.set_provider_index(provider_idx);
+    // 必须在设置 provider_names 之后再设置 provider_index，
+    // 因为 ComboBox 在设置 model 时可能会重置 current-index
     win.set_provider_type(provider_type);
+    win.set_provider_index(provider_idx);
 
     // Set language list and index
     let language_names: Vec<SharedString> = vec![
