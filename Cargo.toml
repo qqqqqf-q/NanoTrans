@@ -48,6 +48,9 @@ once_cell = "1.19"
 # Error handling
 anyhow = "1.0"
 
+# Image processing for tray icon
+image = { version = "0.25", default-features = false, features = ["ico"] }
+
 # URL encoding
 urlencoding = "2.1"
 
@@ -56,6 +59,7 @@ async-trait = "0.1"
 
 [build-dependencies]
 slint-build = "1.9"
+winres = "0.1"
 
 [profile.release]
 opt-level = "z"

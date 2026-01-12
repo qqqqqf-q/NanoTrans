@@ -1,3 +1,10 @@
 fn main() {
     slint_build::compile("ui/main.slint").unwrap();
+
+    #[cfg(windows)]
+    {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("icon.ico");
+        res.compile().unwrap();
+    }
 }
