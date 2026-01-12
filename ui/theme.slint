@@ -1,38 +1,67 @@
 // NanoTrans Design System
-// Blue Palette Theme
+// Modern Dark Theme with Enhanced Visual Hierarchy
 
 export global Theme {
-    // Colors
-    out property <brush> background-main: #1e1e1e;
-    out property <brush> background-overlay: #2d2d2d;
-    out property <brush> background-input: #3c3c3c;
-    
-    out property <brush> text-primary: #cccccc;
-    out property <brush> text-secondary: #999999;
-    out property <brush> text-placeholder: #666666;
-    
-    out property <brush> accent-primary: #007acc;
-    out property <brush> accent-hover: #0098ff;
-    out property <brush> accent-pressed: #005a9e;
-    
-    out property <brush> border-subtle: #454545;
-    out property <brush> border-focus: #007acc;
+    // === Background Colors (Layered System) ===
+    // Base layer - deepest background
+    out property <brush> background-main: #121418;
+    // Elevated surface - cards, panels
+    out property <brush> background-elevated: #1a1d24;
+    // Interactive surface - buttons, inputs
+    out property <brush> background-surface: #242830;
+    // Overlay/hover state
+    out property <brush> background-overlay: #2e333d;
+    // Input fields
+    out property <brush> background-input: #1e2128;
 
-    out property <brush> danger-surface: #3a1515;
-    out property <brush> danger-text: #f14c4c;
+    // === Text Colors ===
+    out property <brush> text-primary: #e8eaed;
+    out property <brush> text-secondary: #9aa0a6;
+    out property <brush> text-muted: #5f6368;
+    out property <brush> text-placeholder: #6e7681;
 
-    // Layout
+    // === Accent Colors (Blue) ===
+    out property <brush> accent-primary: #4a9eff;
+    out property <brush> accent-hover: #6bb3ff;
+    out property <brush> accent-pressed: #3d8ce0;
+    out property <brush> accent-subtle: #1a3a5c;
+
+    // === Border Colors ===
+    out property <brush> border-subtle: #2e333d;
+    out property <brush> border-default: #3c4149;
+    out property <brush> border-focus: #4a9eff;
+
+    // === Semantic Colors ===
+    out property <brush> success-surface: #1a2e1a;
+    out property <brush> success-text: #4ade80;
+    out property <brush> danger-surface: #2e1a1a;
+    out property <brush> danger-text: #f87171;
+    out property <brush> danger-border: #5c2a2a;
+    out property <brush> warning-surface: #2e2a1a;
+    out property <brush> warning-text: #fbbf24;
+
+    // === Layout Spacing ===
+    out property <length> padding-xs: 4px;
     out property <length> padding-small: 8px;
     out property <length> padding-medium: 16px;
     out property <length> padding-large: 24px;
-    
-    out property <length> radius-small: 6px;
-    out property <length> radius-medium: 12px;
-    out property <length> radius-large: 16px;
+    out property <length> padding-xl: 32px;
 
-    // Typography
+    // === Border Radius ===
+    out property <length> radius-small: 6px;
+    out property <length> radius-medium: 10px;
+    out property <length> radius-large: 14px;
+    out property <length> radius-xl: 18px;
+
+    // === Typography ===
+    out property <length> font-size-xs: 10px;
     out property <length> font-size-small: 12px;
     out property <length> font-size-body: 14px;
     out property <length> font-size-header: 18px;
     out property <length> font-size-large: 24px;
+
+    // === Animation Durations ===
+    out property <duration> transition-fast: 100ms;
+    out property <duration> transition-normal: 150ms;
+    out property <duration> transition-slow: 250ms;
 }
