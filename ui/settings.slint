@@ -1,5 +1,5 @@
 // NanoTrans Settings Window
-// Clean, unified provider configuration
+// Modern, unified provider configuration
 
 import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView } from "std-widgets.slint";
 import { Theme } from "./theme.slint";
@@ -13,14 +13,14 @@ component HotkeyInput inherits Rectangle {
 
     callback clicked();
 
-    height: 32px;
-    background: Theme.background-input;
+    height: 36px;
+    background: is-recording ? Theme.accent-subtle : Theme.background-input;
     border-radius: Theme.radius-small;
     border-width: 1px;
     border-color: is-recording ? Theme.accent-primary : (touch.has-hover ? Theme.border-focus : Theme.border-subtle);
 
-    animate border-color { duration: 150ms; }
-    animate background { duration: 150ms; }
+    animate border-color { duration: Theme.transition-normal; }
+    animate background { duration: Theme.transition-normal; }
 
     HorizontalBox {
         padding-left: 12px;
@@ -28,7 +28,7 @@ component HotkeyInput inherits Rectangle {
 
         Text {
             text: is-recording ? recording-text : (hotkey != "" ? hotkey : placeholder);
-            color: is-recording ? Theme.accent-hover : (hotkey != "" ? Theme.text-primary : Theme.text-placeholder);
+            color: is-recording ? Theme.accent-primary : (hotkey != "" ? Theme.text-primary : Theme.text-placeholder);
             font-size: Theme.font-size-body;
             vertical-alignment: center;
             horizontal-alignment: left;
@@ -36,9 +36,34 @@ component HotkeyInput inherits Rectangle {
     }
 
     touch := TouchArea {
+        mouse-cursor: pointer;
         clicked => {
             root.clicked();
         }
+    }
+}
+
+// Section card component for consistent styling
+component SectionCard inherits Rectangle {
+    in property <string> title: "";
+
+    background: Theme.background-elevated;
+    border-radius: Theme.radius-medium;
+    border-width: 1px;
+    border-color: Theme.border-subtle;
+
+    VerticalBox {
+        padding: Theme.padding-medium;
+        spacing: Theme.padding-small;
+
+        if title != "" : Text {
+            text: title;
+            color: Theme.text-secondary;
+            font-size: Theme.font-size-small;
+            font-weight: 500;
+        }
+
+        @children
     }
 }
 
@@ -103,133 +128,78 @@ export component SettingsWindow inherits Window {
 
         ScrollView {
             viewport-height: content.preferred-height;
-            
+
             content := VerticalBox {
                 spacing: Theme.padding-medium;
 
                 // UI Language
-                Rectangle {
-                    background: #FFFFFF05; // Glass effect
-                    border-radius: Theme.radius-medium;
-                    border-width: 1px;
-                    border-color: Theme.border-subtle;
-                    height: 80px;
+                SectionCard {
+                    title: root.i18n-language;
+                    height: 84px;
 
-                    VerticalBox {
-                        padding: Theme.padding-medium;
-                        spacing: Theme.padding-small;
-
-                        Text {
-                            text: root.i18n-language;
-                            color: Theme.text-secondary;
-                            font-size: Theme.font-size-small;
-                        }
-
-                        ComboBox {
-                            model: root.language-names;
-                            current-index <=> root.language-index;
-                            selected(val) => {
-                                root.language-selected(root.language-index);
-                            }
+                    ComboBox {
+                        model: root.language-names;
+                        current-index <=> root.language-index;
+                        selected(val) => {
+                            root.language-selected(root.language-index);
                         }
                     }
                 }
 
                 // Hotkey
-                Rectangle {
-                    background: #FFFFFF05;
-                    border-radius: Theme.radius-medium;
-                    border-width: 1px;
-                    border-color: Theme.border-subtle;
-                    height: 80px;
+                SectionCard {
+                    title: root.i18n-hotkey;
+                    height: 84px;
 
-                    VerticalBox {
-                        padding: Theme.padding-medium;
-                        spacing: Theme.padding-small;
-
-                        Text {
-                            text: root.i18n-hotkey;
-                            color: Theme.text-secondary;
-                            font-size: Theme.font-size-small;
-                        }
-
-                        hotkey-input := HotkeyInput {
-                            hotkey <=> root.hotkey;
-                            is-recording <=> root.hotkey-recording;
-                            placeholder: root.i18n-hotkey-placeholder;
-                            recording-text: root.i18n-hotkey-recording;
-                            clicked => {
-                                root.start-hotkey-capture();
-                            }
+                    hotkey-input := HotkeyInput {
+                        hotkey <=> root.hotkey;
+                        is-recording <=> root.hotkey-recording;
+                        placeholder: root.i18n-hotkey-placeholder;
+                        recording-text: root.i18n-hotkey-recording;
+                        clicked => {
+                            root.start-hotkey-capture();
                         }
                     }
                 }
 
                 // Provider Selection
-                Rectangle {
-                    background: #FFFFFF05;
-                    border-radius: Theme.radius-medium;
-                    border-width: 1px;
-                    border-color: Theme.border-subtle;
-                    height: 80px;
+                SectionCard {
+                    title: root.i18n-provider;
+                    height: 84px;
 
-                    VerticalBox {
-                        padding: Theme.padding-medium;
-                        spacing: Theme.padding-small;
-
-                        Text {
-                            text: root.i18n-provider;
-                            color: Theme.text-secondary;
-                            font-size: Theme.font-size-small;
-                        }
-
-                        ComboBox {
-                            model: root.provider-names;
-                            current-index <=> root.provider-index;
-                            selected(val) => {
-                                root.provider-selected(root.provider-index);
-                            }
+                    ComboBox {
+                        model: root.provider-names;
+                        current-index <=> root.provider-index;
+                        selected(val) => {
+                            root.provider-selected(root.provider-index);
                         }
                     }
                 }
 
                 // Provider Config - Dynamic based on type
-                Rectangle {
-                    background: #FFFFFF05;
-                    border-radius: Theme.radius-medium;
-                    border-width: 1px;
-                    border-color: Theme.border-subtle;
+                SectionCard {
+                    title: root.i18n-provider-settings;
                     vertical-stretch: 1;
 
                     VerticalBox {
-                        padding: Theme.padding-medium;
-                        spacing: Theme.padding-medium;
+                        spacing: 12px;
 
                         // Google - No config needed
-                        if root.provider-type == 0 : VerticalBox {
-                            spacing: Theme.padding-small;
+                        if root.provider-type == 0 : Rectangle {
+                            background: Theme.accent-subtle;
+                            border-radius: Theme.radius-small;
+                            height: 48px;
+                            border-width: 1px;
+                            border-color: Theme.accent-primary;
 
-                            Text {
-                                text: root.i18n-provider-settings;
-                                color: Theme.text-secondary;
-                                font-size: Theme.font-size-small;
-                            }
-
-                            Rectangle {
-                                background: #FFFFFF05;
-                                border-radius: Theme.radius-small;
-                                height: 50px;
-                                border-width: 1px;
-                                border-color: Theme.accent-primary;
-
-                                HorizontalBox {
-                                    padding: Theme.padding-small;
-                                    Text {
-                                        text: root.i18n-google-hint;
-                                        color: Theme.accent-hover;
-                                        font-size: Theme.font-size-body;
-                                        vertical-alignment: center;
-                                    }
+                            HorizontalBox {
+                                padding: Theme.padding-small;
+                                padding-left: 12px;
+                                Text {
+                                    text: root.i18n-google-hint;
+                                    color: Theme.accent-primary;
+                                    font-size: Theme.font-size-body;
+                                    vertical-alignment: center;
                                 }
                             }
                         }
@@ -238,18 +208,12 @@ export component SettingsWindow inherits Window {
                         if root.provider-type == 1 : VerticalBox {
                             spacing: 12px;
 
-                            Text {
-                                text: root.i18n-deepl-settings;
-                                color: Theme.text-secondary;
-                                font-size: Theme.font-size-small;
-                            }
-
                             VerticalBox {
-                                spacing: 4px;
+                                spacing: Theme.padding-xs;
                                 Text {
                                     text: root.i18n-api-key;
-                                    color: Theme.text-placeholder;
-                                    font-size: 11px;
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-size-small;
                                 }
                                 LineEdit {
                                     text <=> root.api-key;
@@ -260,8 +224,8 @@ export component SettingsWindow inherits Window {
 
                             Text {
                                 text: root.i18n-deepl-hint;
-                                color: Theme.text-placeholder;
-                                font-size: 10px;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-xs;
                             }
                         }
 
@@ -269,19 +233,13 @@ export component SettingsWindow inherits Window {
                         if root.provider-type >= 2 : VerticalBox {
                             spacing: 12px;
 
-                            Text {
-                                text: root.i18n-api-settings;
-                                color: Theme.text-secondary;
-                                font-size: Theme.font-size-small;
-                            }
-
                             // API Base (only for Custom)
                             if root.provider-type == 5 : VerticalBox {
-                                spacing: 4px;
+                                spacing: Theme.padding-xs;
                                 Text {
                                     text: root.i18n-api-base;
-                                    color: Theme.text-placeholder;
-                                    font-size: 11px;
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-size-small;
                                 }
                                 LineEdit {
                                     text <=> root.api-base;
@@ -291,11 +249,11 @@ export component SettingsWindow inherits Window {
 
                             // Model
                             VerticalBox {
-                                spacing: 4px;
+                                spacing: Theme.padding-xs;
                                 Text {
                                     text: root.i18n-model;
-                                    color: Theme.text-placeholder;
-                                    font-size: 11px;
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-size-small;
                                 }
                                 LineEdit {
                                     text <=> root.model;
@@ -305,11 +263,11 @@ export component SettingsWindow inherits Window {
 
                             // API Key
                             VerticalBox {
-                                spacing: 4px;
+                                spacing: Theme.padding-xs;
                                 Text {
                                     text: root.i18n-api-key;
-                                    color: Theme.text-placeholder;
-                                    font-size: 11px;
+                                    color: Theme.text-muted;
+                                    font-size: Theme.font-size-small;
                                 }
                                 LineEdit {
                                     text <=> root.api-key;
@@ -327,26 +285,29 @@ export component SettingsWindow inherits Window {
         HorizontalBox {
             alignment: end;
             spacing: Theme.padding-small;
-            height: 44px;
+            height: 48px;
 
             Rectangle {
                 width: 100px;
                 height: 40px;
                 border-radius: Theme.radius-small;
-                background: cancel-area.has-hover ? Theme.background-overlay : transparent;
+                background: cancel-area.has-hover ? Theme.background-overlay : Theme.background-surface;
                 border-width: 1px;
-                border-color: Theme.border-subtle;
-                animate background { duration: 150ms; }
+                border-color: cancel-area.has-hover ? Theme.border-default : Theme.border-subtle;
+                animate background { duration: Theme.transition-fast; }
+                animate border-color { duration: Theme.transition-fast; }
 
                 Text {
                     text: root.i18n-cancel;
-                    color: Theme.text-secondary;
+                    color: cancel-area.has-hover ? Theme.text-primary : Theme.text-secondary;
                     font-size: Theme.font-size-body;
                     horizontal-alignment: center;
                     vertical-alignment: center;
+                    animate color { duration: Theme.transition-fast; }
                 }
 
                 cancel-area := TouchArea {
+                    mouse-cursor: pointer;
                     clicked => { root.cancel-settings(); }
                 }
             }
@@ -356,7 +317,7 @@ export component SettingsWindow inherits Window {
                 height: 40px;
                 border-radius: Theme.radius-small;
                 background: save-area.has-hover ? Theme.accent-hover : Theme.accent-primary;
-                animate background { duration: 150ms; }
+                animate background { duration: Theme.transition-fast; }
 
                 Text {
                     text: root.i18n-save;
@@ -368,6 +329,7 @@ export component SettingsWindow inherits Window {
                 }
 
                 save-area := TouchArea {
+                    mouse-cursor: pointer;
                     clicked => { root.save-settings(); }
                 }
             }

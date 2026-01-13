@@ -1,5 +1,5 @@
 // NanoTrans Translation Popup UI
-// A minimal, frameless popup window for displaying translations
+// Modern, frameless popup window for displaying translations
 
 import { VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
 import { Theme } from "./theme.slint";
@@ -8,8 +8,8 @@ export component TranslatePopup inherits Window {
     // Window properties
     no-frame: true;
     always-on-top: true;
-    width: 460px; // Slightly wider for better spacing
-    min-height: 200px;
+    width: 380px;
+    min-height: 160px;
     background: transparent;
 
     // Input properties
@@ -38,112 +38,92 @@ export component TranslatePopup inherits Window {
     // 拖动状态
     property <bool> dragging: false;
 
-    // Main container with rounded corners and shadow effect
+    // Main container with rounded corners
     Rectangle {
         x: 4px;
         y: 4px;
         width: parent.width - 8px;
         height: parent.height - 8px;
-        background: #1e1e1e;
-        border-radius: 10px;
+        background: Theme.background-elevated;
+        border-radius: Theme.radius-large;
         border-width: 1px;
-        border-color: #3a3a3a;
-
-        // 拖动区域 - 点击头部可拖动窗口
-        drag-area := TouchArea {
-            x: 0;
-            y: 0;
-            width: parent.width;
-            height: 46px;
-            mouse-cursor: move;
-
-            moved => {
-                if (self.pressed) {
-                    root.drag-window(
-                        (self.mouse-x - self.pressed-x) / 1px,
-                        (self.mouse-y - self.pressed-y) / 1px
-                    );
-                }
-            }
-        }
+        border-color: Theme.border-default;
 
         // Content layout
         VerticalBox {
-            padding: 14px;
-            spacing: 10px;
+            padding-top: 14px;
+            padding-bottom: 12px;
+            padding-left: 12px;
+            padding-right: 12px;
+            spacing: 8px;
 
             // Header with provider selector and buttons
             HorizontalBox {
-                alignment: space-between;
                 height: 32px;
                 spacing: 8px;
 
                 // Provider selector dropdown
-                HorizontalBox {
-                    spacing: 6px;
+                Text {
+                    text: root.i18n-provider-label;
+                    color: Theme.text-secondary;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+
+                ComboBox {
+                    width: 120px;
+                    model: root.provider-list;
+                    current-index <=> root.current-provider-index;
+                    selected(value) => {
+                        root.provider-changed(root.current-provider-index);
+                    }
+                }
+
+                // Spacer to push buttons to the right
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+
+                // Settings button
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 4px;
+                    background: settings-touch.has-hover ? Theme.background-overlay : transparent;
 
                     Text {
-                        text: root.i18n-provider-label;
-                        color: #888888;
+                        text: "S";
+                        color: settings-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
                         font-size: 12px;
+                        horizontal-alignment: center;
                         vertical-alignment: center;
                     }
 
-                    ComboBox {
-                        width: 120px;
-                        model: root.provider-list;
-                        current-index <=> root.current-provider-index;
-                        selected(value) => {
-                            root.provider-changed(root.current-provider-index);
+                    settings-touch := TouchArea {
+                        clicked => {
+                            root.open-settings();
                         }
                     }
                 }
 
-                // Right side buttons
-                HorizontalBox {
-                    spacing: 4px;
+                // Close button
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 4px;
+                    background: close-touch.has-hover ? Theme.danger-surface : transparent;
 
-                    // Settings button
-                    Rectangle {
-                        width: 28px;
-                        height: 28px;
-                        border-radius: 4px;
-                        background: settings-touch.has-hover ? #3a3a3a : transparent;
-
-                        Text {
-                            text: "S";
-                            color: #888888;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-
-                        settings-touch := TouchArea {
-                            clicked => {
-                                root.open-settings();
-                            }
-                        }
+                    Text {
+                        text: "X";
+                        color: close-touch.has-hover ? Theme.danger-text : Theme.text-secondary;
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
                     }
 
-                    // Close button
-                    Rectangle {
-                        width: 28px;
-                        height: 28px;
-                        border-radius: 4px;
-                        background: close-touch.has-hover ? #4a2020 : transparent;
-
-                        Text {
-                            text: "X";
-                            color: close-touch.has-hover ? #ff6b6b : #888888;
-                            font-size: 14px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-
-                        close-touch := TouchArea {
-                            clicked => {
-                                root.close-popup();
-                            }
+                    close-touch := TouchArea {
+                        clicked => {
+                            root.close-popup();
                         }
                     }
                 }
@@ -151,9 +131,11 @@ export component TranslatePopup inherits Window {
 
             // Source text display
             if root.source-text != "" : Rectangle {
-                height: 36px;
-                background: #2a2a2a;
-                border-radius: 6px;
+                height: 32px;
+                background: Theme.background-surface;
+                border-radius: Theme.radius-small;
+                border-width: 1px;
+                border-color: Theme.border-subtle;
 
                 HorizontalBox {
                     padding-left: 10px;
@@ -161,8 +143,8 @@ export component TranslatePopup inherits Window {
 
                     Text {
                         text: root.source-text;
-                        color: #aaaaaa;
-                        font-size: 13px;
+                        color: Theme.text-secondary;
+                        font-size: 11px;
                         overflow: elide;
                         vertical-alignment: center;
                     }
@@ -171,17 +153,19 @@ export component TranslatePopup inherits Window {
 
             // Loading indicator
             if root.loading : Rectangle {
-                height: 70px;
-                background: #2a2a2a;
-                border-radius: 6px;
+                height: 50px;
+                background: Theme.background-surface;
+                border-radius: Theme.radius-medium;
+                border-width: 1px;
+                border-color: Theme.accent-subtle;
 
                 HorizontalBox {
                     alignment: center;
 
                     Text {
                         text: root.i18n-translating;
-                        color: #4a9eff;
-                        font-size: 14px;
+                        color: Theme.accent-primary;
+                        font-size: 13px;
                         vertical-alignment: center;
                     }
                 }
@@ -189,19 +173,19 @@ export component TranslatePopup inherits Window {
 
             // Error message
             if root.error-message != "" : Rectangle {
-                background: #3a1515;
-                border-radius: 6px;
+                background: Theme.danger-surface;
+                border-radius: Theme.radius-small;
                 border-width: 1px;
-                border-color: #5a2020;
-                min-height: 44px;
+                border-color: Theme.danger-border;
+                min-height: 36px;
 
                 HorizontalBox {
-                    padding: 10px;
+                    padding: 8px;
 
                     Text {
                         text: root.error-message;
-                        color: #ff6b6b;
-                        font-size: 12px;
+                        color: Theme.danger-text;
+                        font-size: 11px;
                         wrap: word-wrap;
                         vertical-alignment: center;
                     }
@@ -210,23 +194,28 @@ export component TranslatePopup inherits Window {
 
             // Translation result
             if !root.loading && root.error-message == "" && root.translated-text != "" : Rectangle {
-                background: #2a2a2a;
-                border-radius: 6px;
-                min-height: 70px;
+                background: result-touch.has-hover ? Theme.background-overlay : Theme.background-surface;
+                border-radius: Theme.radius-medium;
+                border-width: 1px;
+                border-color: result-touch.has-hover ? Theme.accent-primary : Theme.border-subtle;
+                min-height: 50px;
+                animate background { duration: Theme.transition-normal; }
+                animate border-color { duration: Theme.transition-normal; }
 
                 VerticalBox {
                     padding: 10px;
 
                     Text {
                         text: root.translated-text;
-                        color: #ffffff;
-                        font-size: 14px;
+                        color: Theme.text-primary;
+                        font-size: 13px;
                         wrap: word-wrap;
                     }
                 }
 
                 // Click to apply
                 result-touch := TouchArea {
+                    mouse-cursor: pointer;
                     clicked => {
                         root.apply-translation();
                     }
@@ -236,27 +225,28 @@ export component TranslatePopup inherits Window {
             // Action buttons
             if !root.loading && root.translated-text != "" : HorizontalBox {
                 alignment: end;
-                spacing: 8px;
-                height: 34px;
+                spacing: 6px;
+                height: 28px;
 
                 // Copy button
                 Rectangle {
-                    width: 70px;
-                    height: 30px;
-                    border-radius: 6px;
-                    background: copy-touch.has-hover ? #3a3a3a : #2a2a2a;
+                    width: 60px;
+                    height: 26px;
+                    border-radius: 4px;
+                    background: copy-touch.has-hover ? Theme.background-overlay : Theme.background-surface;
                     border-width: 1px;
-                    border-color: #4a4a4a;
+                    border-color: copy-touch.has-hover ? Theme.border-default : Theme.border-subtle;
 
                     Text {
                         text: root.i18n-copy;
-                        color: #cccccc;
-                        font-size: 12px;
+                        color: copy-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
+                        font-size: 11px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
 
                     copy-touch := TouchArea {
+                        mouse-cursor: pointer;
                         clicked => {
                             root.copy-result();
                         }
@@ -265,21 +255,22 @@ export component TranslatePopup inherits Window {
 
                 // Apply button (paste)
                 Rectangle {
-                    width: 80px;
-                    height: 30px;
-                    border-radius: 6px;
-                    background: apply-touch.has-hover ? #3a7bd5 : #4a9eff;
+                    width: 60px;
+                    height: 26px;
+                    border-radius: 4px;
+                    background: apply-touch.has-hover ? Theme.accent-hover : Theme.accent-primary;
 
                     Text {
                         text: root.i18n-apply;
                         color: #ffffff;
-                        font-size: 12px;
+                        font-size: 11px;
                         font-weight: 600;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
 
                     apply-touch := TouchArea {
+                        mouse-cursor: pointer;
                         clicked => {
                             root.apply-translation();
                         }
@@ -290,8 +281,8 @@ export component TranslatePopup inherits Window {
             // Hint text
             if !root.loading && root.translated-text != "" : Text {
                 text: root.i18n-hint;
-                color: #555555;
-                font-size: 10px;
+                color: Theme.text-muted;
+                font-size: 9px;
                 horizontal-alignment: center;
             }
         }
