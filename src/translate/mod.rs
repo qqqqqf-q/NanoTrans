@@ -194,8 +194,7 @@ impl Translator {
             content: String,
         }
 
-        let system_prompt = get_translation_system_prompt(&request.target_lang);
-        let user_prompt = get_translation_user_prompt(&request.target_lang, &request.text);
+        let (system_prompt, user_prompt) = build_translation_prompts(&self.config, request);
 
         let openai_req = OpenAIRequest {
             model: provider.model.clone(),
@@ -255,8 +254,7 @@ impl Translator {
             text: String,
         }
 
-        let system_prompt = get_translation_system_prompt(&request.target_lang);
-        let user_prompt = get_translation_user_prompt(&request.target_lang, &request.text);
+        let (system_prompt, user_prompt) = build_translation_prompts(&self.config, request);
 
         let anthropic_req = AnthropicRequest {
             model: provider.model.clone(),
@@ -304,6 +302,52 @@ fn get_language_name(code: &str) -> String {
         "vi" => "Tiếng Việt".to_string(),
         _ => code.to_string(), // 未知语言代码直接返回原值
     }
+}
+
+struct PromptTemplateContext<'a> {
+    target_lang_code: &'a str,
+    target_lang_name: String,
+    source_lang_code: Option<&'a str>,
+    text: &'a str,
+}
+
+fn render_prompt_template(template: &str, ctx: &PromptTemplateContext<'_>) -> String {
+    let mut out = template.to_string();
+    out = out.replace("{{target_lang_name}}", &ctx.target_lang_name);
+    out = out.replace("{{target_lang_code}}", ctx.target_lang_code);
+    out = out.replace("{{text}}", ctx.text);
+    out = out.replace("{{source_lang_code}}", ctx.source_lang_code.unwrap_or_default());
+    out
+}
+
+fn build_translation_prompts(config: &Config, request: &TranslateRequest) -> (String, String) {
+    let ctx = PromptTemplateContext {
+        target_lang_code: &request.target_lang,
+        target_lang_name: get_language_name(&request.target_lang),
+        source_lang_code: request.source_lang.as_deref(),
+        text: &request.text,
+    };
+
+    let Some(preset) = config.active_prompt_preset() else {
+        return (
+            get_translation_system_prompt(&request.target_lang),
+            get_translation_user_prompt(&request.target_lang, &request.text),
+        );
+    };
+
+    let system = if preset.system_template.trim().is_empty() {
+        get_translation_system_prompt(&request.target_lang)
+    } else {
+        render_prompt_template(&preset.system_template, &ctx)
+    };
+
+    let user = if preset.user_template.trim().is_empty() {
+        get_translation_user_prompt(&request.target_lang, &request.text)
+    } else {
+        render_prompt_template(&preset.user_template, &ctx)
+    };
+
+    (system, user)
 }
 
 /// 生成翻译系统提示词
