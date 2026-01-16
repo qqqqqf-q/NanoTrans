@@ -13,7 +13,7 @@ mod translate;
 mod tray;
 
 use anyhow::Result;
-use config::Config;
+use config::{Config, PromptPreset};
 use hotkey::HotkeyManager;
 use slint::{ComponentHandle, ModelRc, PhysicalPosition, SharedString, VecModel};
 use std::cell::RefCell;
@@ -264,6 +264,58 @@ fn open_settings_window(
     settings_window: &Rc<RefCell<Option<SettingsWindow>>>,
     hotkey_manager: &Arc<Mutex<HotkeyManager>>,
 ) {
+    struct PromptPresetDraft {
+        presets: Vec<PromptPreset>,
+        selected: usize,
+    }
+
+    fn sync_prompt_preset_ui(win: &SettingsWindow, draft: &PromptPresetDraft) {
+        let names: Vec<SharedString> = draft.presets.iter().map(|p| SharedString::from(&p.name)).collect();
+        win.set_prompt_preset_names(ModelRc::new(VecModel::from(names)));
+        win.set_prompt_preset_index(draft.selected as i32);
+        if let Some(preset) = draft.presets.get(draft.selected) {
+            win.set_prompt_preset_name(SharedString::from(&preset.name));
+            win.set_prompt_system_template(SharedString::from(&preset.system_template));
+            win.set_prompt_user_template(SharedString::from(&preset.user_template));
+            win.set_prompt_preset_deletable(!preset.is_preset);
+        } else {
+            win.set_prompt_preset_deletable(false);
+        }
+    }
+
+    fn update_selected_preset_from_ui(win: &SettingsWindow, draft: &mut PromptPresetDraft) {
+        let Some(preset) = draft.presets.get_mut(draft.selected) else { return; };
+        let name = win.get_prompt_preset_name().to_string();
+        if !name.trim().is_empty() {
+            preset.name = name;
+        }
+        preset.system_template = win.get_prompt_system_template().to_string();
+        let user_template = win.get_prompt_user_template().to_string();
+        preset.user_template = if user_template.trim().is_empty() {
+            "{{text}}".to_string()
+        } else {
+            user_template
+        };
+    }
+
+    fn next_custom_preset(draft: &PromptPresetDraft) -> PromptPreset {
+        let mut idx = 1usize;
+        let id = loop {
+            let candidate = format!("custom-{}", idx);
+            if draft.presets.iter().all(|p| p.id != candidate) {
+                break candidate;
+            }
+            idx += 1;
+        };
+        PromptPreset {
+            id,
+            name: format!("自定义 {}", idx),
+            system_template: String::new(),
+            user_template: "{{text}}".to_string(),
+            is_preset: false,
+        }
+    }
+
     if settings_window.borrow().is_some() {
         if let Some(ref win) = *settings_window.borrow() {
             win.set_hotkey_recording(false);
@@ -285,7 +337,7 @@ fn open_settings_window(
     set_settings_i18n_texts(&win);
 
     // Load config into UI
-    let (provider_idx, provider_type, lang_idx) = {
+    let (provider_idx, provider_type, lang_idx, prompt_presets, active_prompt_id) = {
         let state = shared_state.lock().unwrap();
         let config = &state.config;
 
@@ -301,7 +353,7 @@ fn open_settings_window(
         }
 
         let lang_index = i18n::language_to_index(&config.ui_language);
-        (idx as i32, ptype, lang_index)
+        (idx as i32, ptype, lang_index, config.prompt_presets.clone(), config.active_prompt_preset_id.clone())
     };
 
     // Set provider list
@@ -321,6 +373,20 @@ fn open_settings_window(
     ];
     win.set_language_names(ModelRc::new(VecModel::from(language_names)));
     win.set_language_index(lang_idx);
+
+    // Prompt preset draft (kept local until Save)
+    let prompt_presets = if prompt_presets.is_empty() {
+        Config::default().prompt_presets
+    } else {
+        prompt_presets
+    };
+    let selected_prompt_idx = prompt_presets
+        .iter()
+        .position(|p| p.id == active_prompt_id)
+        .unwrap_or(0)
+        .min(prompt_presets.len().saturating_sub(1));
+    let prompt_draft = Rc::new(RefCell::new(PromptPresetDraft { presets: prompt_presets, selected: selected_prompt_idx }));
+    sync_prompt_preset_ui(&win, &prompt_draft.borrow());
 
     // Handle provider selection
     let shared_state_sel = Arc::clone(shared_state);
@@ -356,11 +422,62 @@ fn open_settings_window(
         }
     });
 
+    // Handle prompt preset selection / add / delete (draft only)
+    let win_weak_prompt = win.as_weak();
+    let prompt_draft_sel = Rc::clone(&prompt_draft);
+    win.on_prompt_preset_selected(move |index| {
+        if let Some(w) = win_weak_prompt.upgrade() {
+            let mut draft = prompt_draft_sel.borrow_mut();
+            update_selected_preset_from_ui(&w, &mut draft);
+            let idx = index.max(0) as usize;
+            if idx < draft.presets.len() {
+                draft.selected = idx;
+            }
+            sync_prompt_preset_ui(&w, &draft);
+        }
+    });
+
+    let win_weak_prompt_add = win.as_weak();
+    let prompt_draft_add = Rc::clone(&prompt_draft);
+    win.on_add_prompt_preset(move || {
+        if let Some(w) = win_weak_prompt_add.upgrade() {
+            let mut draft = prompt_draft_add.borrow_mut();
+            update_selected_preset_from_ui(&w, &mut draft);
+            let new_preset = next_custom_preset(&draft);
+            draft.presets.push(new_preset);
+            draft.selected = draft.presets.len().saturating_sub(1);
+            sync_prompt_preset_ui(&w, &draft);
+        }
+    });
+
+    let win_weak_prompt_del = win.as_weak();
+    let prompt_draft_del = Rc::clone(&prompt_draft);
+    win.on_delete_prompt_preset(move || {
+        if let Some(w) = win_weak_prompt_del.upgrade() {
+            let mut draft = prompt_draft_del.borrow_mut();
+            if draft.presets.len() <= 1 {
+                return;
+            }
+            if let Some(current) = draft.presets.get(draft.selected) {
+                if current.is_preset {
+                    return;
+                }
+            }
+            let remove_idx = draft.selected;
+            draft.presets.remove(remove_idx);
+            if draft.selected >= draft.presets.len() {
+                draft.selected = draft.presets.len().saturating_sub(1);
+            }
+            sync_prompt_preset_ui(&w, &draft);
+        }
+    });
+
     // Handle save
     let shared_state_save = Arc::clone(shared_state);
     let settings_window_save = Rc::clone(settings_window);
     let hotkey_manager_save = Arc::clone(hotkey_manager);
     let win_weak_save = win.as_weak();
+    let prompt_draft_save = Rc::clone(&prompt_draft);
     win.on_save_settings(move || {
         if let Some(w) = win_weak_save.upgrade() {
             let new_hotkey = w.get_hotkey().to_string();
@@ -381,6 +498,17 @@ fn open_settings_window(
 
             // Save language setting
             config.ui_language = i18n::index_to_language(w.get_language_index());
+
+            // Save prompt preset setting
+            {
+                let mut draft = prompt_draft_save.borrow_mut();
+                update_selected_preset_from_ui(&w, &mut draft);
+                config.prompt_presets = draft.presets.clone();
+                if let Some(active) = config.prompt_presets.get(draft.selected) {
+                    config.active_prompt_preset_id = active.id.clone();
+                }
+                config.normalize();
+            }
 
             let hotkey_result = hotkey_manager_save
                 .lock()
@@ -541,6 +669,14 @@ fn set_settings_i18n_texts(win: &SettingsWindow) {
     win.set_i18n_api_base(SharedString::from(t.api_base_url));
     win.set_i18n_model(SharedString::from(t.model));
     win.set_i18n_model_placeholder(SharedString::from(t.model_placeholder));
+    win.set_i18n_prompt_settings(SharedString::from(t.prompt_settings));
+    win.set_i18n_prompt_preset(SharedString::from(t.prompt_preset));
+    win.set_i18n_prompt_add(SharedString::from(t.prompt_add));
+    win.set_i18n_prompt_delete(SharedString::from(t.prompt_delete));
+    win.set_i18n_prompt_name(SharedString::from(t.prompt_name));
+    win.set_i18n_prompt_system(SharedString::from(t.prompt_system));
+    win.set_i18n_prompt_user(SharedString::from(t.prompt_user));
+    win.set_i18n_prompt_vars(SharedString::from(t.prompt_vars));
     win.set_i18n_cancel(SharedString::from(t.cancel));
     win.set_i18n_save(SharedString::from(t.save));
     win.set_i18n_language(SharedString::from(t.ui_language));
