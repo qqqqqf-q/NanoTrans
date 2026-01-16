@@ -1,7 +1,7 @@
 // NanoTrans Settings Window
 // Modern, unified provider configuration
 
-import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView, TextEdit } from "std-widgets.slint";
 import { Theme } from "./theme.slint";
 
 // Hotkey input component - displays hotkey and triggers recording via Rust
@@ -87,6 +87,14 @@ export component SettingsWindow inherits Window {
     in-out property <int> language-index: 0;
     in property <[string]> language-names: ["Auto", "English", "中文"];
 
+    // Prompt presets (LLM)
+    in-out property <int> prompt-preset-index: 0;
+    in property <[string]> prompt-preset-names: ["默认（严格）", "更自然（轻润色）"];
+    in-out property <string> prompt-preset-name: "";
+    in-out property <string> prompt-system-template: "";
+    in-out property <string> prompt-user-template: "";
+    in property <bool> prompt-preset-deletable: false;
+
     // I18N text properties
     in property <string> i18n-title: "Settings";
     in property <string> i18n-hotkey: "Global Hotkey";
@@ -107,12 +115,25 @@ export component SettingsWindow inherits Window {
     in property <string> i18n-save: "Save";
     in property <string> i18n-language: "UI Language";
 
+    // Prompt i18n
+    in property <string> i18n-prompt-settings: "Prompt Settings";
+    in property <string> i18n-prompt-preset: "Preset";
+    in property <string> i18n-prompt-add: "Add";
+    in property <string> i18n-prompt-delete: "Delete";
+    in property <string> i18n-prompt-name: "Preset Name";
+    in property <string> i18n-prompt-system: "System Template";
+    in property <string> i18n-prompt-user: "User Template";
+    in property <string> i18n-prompt-vars: "Vars: {{target_lang_name}} {{target_lang_code}} {{text}}";
+
     // Callbacks
     callback save-settings();
     callback cancel-settings();
     callback provider-selected(int);
     callback language-selected(int);
     callback start-hotkey-capture();
+    callback prompt-preset-selected(int);
+    callback add-prompt-preset();
+    callback delete-prompt-preset();
 
     VerticalBox {
         padding: Theme.padding-large;
@@ -275,6 +296,137 @@ export component SettingsWindow inherits Window {
                                     input-type: password;
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Prompt presets (only affects LLM providers)
+                SectionCard {
+                    title: root.i18n-prompt-settings;
+
+                    VerticalBox {
+                        spacing: 12px;
+
+                        HorizontalBox {
+                            spacing: Theme.padding-small;
+                            height: 36px;
+
+                            Text {
+                                text: root.i18n-prompt-preset;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-small;
+                                vertical-alignment: center;
+                            }
+
+                            ComboBox {
+                                horizontal-stretch: 1;
+                                model: root.prompt-preset-names;
+                                current-index <=> root.prompt-preset-index;
+                                selected(val) => {
+                                    root.prompt-preset-selected(root.prompt-preset-index);
+                                }
+                            }
+
+                            Rectangle {
+                                width: 70px;
+                                height: 34px;
+                                border-radius: Theme.radius-small;
+                                background: add-area.has-hover ? Theme.background-overlay : Theme.background-surface;
+                                border-width: 1px;
+                                border-color: add-area.has-hover ? Theme.border-default : Theme.border-subtle;
+                                animate background { duration: Theme.transition-fast; }
+                                animate border-color { duration: Theme.transition-fast; }
+
+                                Text {
+                                    text: root.i18n-prompt-add;
+                                    color: add-area.has-hover ? Theme.text-primary : Theme.text-secondary;
+                                    font-size: Theme.font-size-body;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    animate color { duration: Theme.transition-fast; }
+                                }
+
+                                add-area := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { root.add-prompt-preset(); }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 70px;
+                                height: 34px;
+                                border-radius: Theme.radius-small;
+                                background: delete-area.has-hover && root.prompt-preset-deletable ? Theme.danger-surface : Theme.background-surface;
+                                border-width: 1px;
+                                border-color: delete-area.has-hover && root.prompt-preset-deletable ? Theme.danger-border : Theme.border-subtle;
+                                animate background { duration: Theme.transition-fast; }
+                                animate border-color { duration: Theme.transition-fast; }
+
+                                Text {
+                                    text: root.i18n-prompt-delete;
+                                    color: root.prompt-preset-deletable ? (delete-area.has-hover ? Theme.danger-text : Theme.text-secondary) : Theme.text-placeholder;
+                                    font-size: Theme.font-size-body;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    animate color { duration: Theme.transition-fast; }
+                                }
+
+                                delete-area := TouchArea {
+                                    mouse-cursor: root.prompt-preset-deletable ? pointer : default;
+                                    clicked => {
+                                        if (root.prompt-preset-deletable) {
+                                            root.delete-prompt-preset();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        VerticalBox {
+                            spacing: Theme.padding-xs;
+                            Text {
+                                text: root.i18n-prompt-name;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-small;
+                            }
+                            LineEdit {
+                                text <=> root.prompt-preset-name;
+                                placeholder-text: "自定义 1";
+                            }
+                        }
+
+                        VerticalBox {
+                            spacing: Theme.padding-xs;
+                            Text {
+                                text: root.i18n-prompt-system;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-small;
+                            }
+                            TextEdit {
+                                height: 120px;
+                                text <=> root.prompt-system-template;
+                                wrap: word-wrap;
+                            }
+                        }
+
+                        VerticalBox {
+                            spacing: Theme.padding-xs;
+                            Text {
+                                text: root.i18n-prompt-user;
+                                color: Theme.text-muted;
+                                font-size: Theme.font-size-small;
+                            }
+                            TextEdit {
+                                height: 100px;
+                                text <=> root.prompt-user-template;
+                                wrap: word-wrap;
+                            }
+                        }
+
+                        Text {
+                            text: root.i18n-prompt-vars;
+                            color: Theme.text-placeholder;
+                            font-size: Theme.font-size-small;
                         }
                     }
                 }
