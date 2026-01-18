@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - Cargo.toml
 
 permissions:
   contents: write
@@ -16,14 +18,37 @@ jobs:
       # 1. 签出代码
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # 2. 检查版本号是否变更
+      - name: Check version change
+        id: version
+        shell: pwsh
+        run: |
+          $versionMatch = Select-String -Path Cargo.toml -Pattern '^\s*version\s*=\s*"(.*)"'
+          if (-not $versionMatch) {
+            Write-Error "Cargo.toml 中未找到 version 字段"
+            exit 1
+          }
+          $version = $versionMatch.Matches[0].Groups[1].Value
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $diff = git diff -U0 HEAD~1 HEAD -- Cargo.toml
+          if ($diff -match '(?m)^\+version\s*=') {
+            "changed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
+          "changed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       # 2. 安装 Rust 稳定版工具链
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        if: steps.version.outputs.changed == 'true'
 
       # 3. 缓存 Cargo 依赖（加速构建）
       - name: Cache Cargo registry
         uses: actions/cache@v4
+        if: steps.version.outputs.changed == 'true'
         with:
           path: |
             ~/.cargo/registry
@@ -36,10 +61,12 @@ jobs:
       # 4. 执行 Release 编译
       - name: Build release
         run: cargo build --release
+        if: steps.version.outputs.changed == 'true'
 
       # 5. 删除旧的 latest release（如果存在）
       - name: Delete existing latest release
         uses: cb80/delrel@latest
+        if: steps.version.outputs.changed == 'true'
         with:
           tag: latest
         env:
@@ -49,18 +76,21 @@ jobs:
       - name: Delete existing latest tag
         run: |
           git push origin :refs/tags/latest || true
+        if: steps.version.outputs.changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 7. 创建/更新 latest release 并上传二进制文件
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
+        if: steps.version.outputs.changed == 'true'
         with:
           tag_name: latest
           name: Latest Build
           body: |
             This is an automated rolling release.
 
+            **Version:** ${{ steps.version.outputs.version }}
             **Commit:** ${{ github.sha }}
             **Build Time:** ${{ github.event.head_commit.timestamp }}
 
