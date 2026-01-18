@@ -7,7 +7,7 @@ NanoTrans 是一款跨平台的极致轻量化输入翻译助手，支持 Window
 ## 平台支持
 
 - ✅ **Windows**: 完整功能支持，精确的文本光标位置检测
-- ✅ **macOS**: 核心功能完全支持（需要辅助功能权限）（存在中文字体问题，请暂时等待一段时间）（且监测到ctrl+v后窗口不会消失）  
+- ❌ **macOS**: 核心功能支持（需要辅助功能权限）（且监测到ctrl+v后窗口不会消失）  
 
 ## 项目功能
 
@@ -69,12 +69,6 @@ cargo build --release
 # Windows: 可选安装 WiX Toolset 用于生成 MSI 安装包
 # macOS: 编译后的二进制位于 target/release/nanotrans
 ```
-
-### 开发文档
-
-- [macOS 支持说明](MACOS_SUPPORT.md)
-- [实现总结](IMPLEMENTATION_SUMMARY.md)
-- [开发规范](agents.md)
 
 ## 体积优化说明
 
