@@ -11,44 +11,46 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: windows-latest
-
+  version-check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      # 1. 签出代码
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      # 2. 检查版本号是否变更
       - name: Check version change
         id: version
-        shell: pwsh
+        shell: bash
         run: |
-          $versionMatch = Select-String -Path Cargo.toml -Pattern '^\s*version\s*=\s*"(.*)"'
-          if (-not $versionMatch) {
-            Write-Error "Cargo.toml 中未找到 version 字段"
+          version=$(grep -E '^\s*version\s*=' Cargo.toml | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$version" ]; then
+            echo "Cargo.toml 中未找到 version 字段" >&2
             exit 1
-          }
-          $version = $versionMatch.Matches[0].Groups[1].Value
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          $diff = git diff -U0 HEAD~1 HEAD -- Cargo.toml
-          if ($diff -match '(?m)^\+version\s*=') {
-            "changed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            exit 0
-          }
-          "changed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git diff -U0 HEAD~1 HEAD -- Cargo.toml | grep -Eq '^\+version\s*='; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      # 2. 安装 Rust 稳定版工具链
+  build-windows:
+    needs: version-check
+    if: needs.version-check.outputs.changed == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        if: steps.version.outputs.changed == 'true'
 
-      # 3. 缓存 Cargo 依赖（加速构建）
       - name: Cache Cargo registry
         uses: actions/cache@v4
-        if: steps.version.outputs.changed == 'true'
         with:
           path: |
             ~/.cargo/registry
@@ -58,45 +60,150 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # 4. 执行 Release 编译
       - name: Build release
         run: cargo build --release
-        if: steps.version.outputs.changed == 'true'
 
-      # 5. 删除旧的 latest release（如果存在）
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: target/release/nanotrans.exe
+
+  build-macos:
+    needs: version-check
+    if: needs.version-check.outputs.changed == 'true'
+    runs-on: macos-latest
+    env:
+      APP_VERSION: ${{ needs.version-check.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package macOS app
+        shell: bash
+        run: |
+          APP_NAME="NanoTrans"
+          APP_DIR="dist/${APP_NAME}.app"
+          BIN_PATH="target/release/nanotrans"
+          ICONSET_DIR="target/app-icons/${APP_NAME}.iconset"
+          ICON_FILE="${APP_NAME}.icns"
+          ICON_PATH="target/app-icons/${ICON_FILE}"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+          if [ -d "$ICONSET_DIR" ]; then
+            iconutil -c icns "$ICONSET_DIR" -o "$ICON_PATH"
+          fi
+          if [ ! -f "$ICON_PATH" ]; then
+            echo "未生成 ${ICON_PATH}，请确认 iconutil 是否可用" >&2
+            exit 1
+          fi
+          cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/nanotrans"
+          chmod +x "$APP_DIR/Contents/MacOS/nanotrans"
+          cp "$ICON_PATH" "$APP_DIR/Contents/Resources/${ICON_FILE}"
+          cat > "$APP_DIR/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>${APP_NAME}</string>
+              <key>CFBundleDisplayName</key>
+              <string>${APP_NAME}</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.nanotrans.app</string>
+              <key>CFBundleExecutable</key>
+              <string>nanotrans</string>
+              <key>CFBundleIconFile</key>
+              <string>${ICON_FILE}</string>
+              <key>CFBundleVersion</key>
+              <string>${APP_VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${APP_VERSION}</string>
+              <key>LSApplicationCategoryType</key>
+              <string>public.app-category.productivity</string>
+          </dict>
+          </plist>
+          EOF
+          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "${APP_NAME}-macOS.app.zip"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: NanoTrans-macOS.app.zip
+
+  release:
+    needs: [version-check, build-windows, build-macos]
+    if: needs.version-check.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/windows
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-app
+          path: dist/macos
+
       - name: Delete existing latest release
         uses: cb80/delrel@latest
-        if: steps.version.outputs.changed == 'true'
         with:
           tag: latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 6. 删除旧的 latest tag（如果存在）
       - name: Delete existing latest tag
         run: |
           git push origin :refs/tags/latest || true
-        if: steps.version.outputs.changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. 创建/更新 latest release 并上传二进制文件
-      - name: Create Release and Upload Asset
+      - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
-        if: steps.version.outputs.changed == 'true'
         with:
           tag_name: latest
           name: Latest Build
           body: |
-            This is an automated rolling release.
+            自动发布。
 
-            **Version:** ${{ steps.version.outputs.version }}
+            **Version:** ${{ needs.version-check.outputs.version }}
             **Commit:** ${{ github.sha }}
             **Build Time:** ${{ github.event.head_commit.timestamp }}
 
-            Download `nanotrans.exe` below to get the latest version.
+            Windows 下载：
+            https://github.com/${{ github.repository }}/releases/download/latest/nanotrans.exe
+
+            macOS 下载：
+            https://github.com/${{ github.repository }}/releases/download/latest/NanoTrans-macOS.app.zip
           draft: false
           prerelease: false
-          files: target/release/nanotrans.exe
+          files: |
+            dist/windows/nanotrans.exe
+            dist/macos/NanoTrans-macOS.app.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
