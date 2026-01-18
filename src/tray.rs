@@ -18,6 +18,16 @@ pub const MENU_EXIT: &str = "exit";
 
 /// Create the system tray icon and menu
 pub fn create_tray() -> Result<TrayIcon> {
+    // macOS 需要在主线程初始化托盘
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::Once;
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            // 确保只初始化一次
+        });
+    }
+
     // Create menu items
     let menu = Menu::new();
 
@@ -30,7 +40,6 @@ pub fn create_tray() -> Result<TrayIcon> {
     menu.append(&exit_item)?;
 
     // Create tray icon
-    // Using a simple embedded icon (16x16 RGBA)
     let icon = create_default_icon();
 
     let tray = TrayIconBuilder::new()

@@ -144,7 +144,7 @@ pub fn init(ui_lang: &UILanguage) {
 
 /// Detect system language
 fn detect_system_language() -> Lang {
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     {
         use windows::Win32::Globalization::GetUserDefaultUILanguage;
         let lang_id = unsafe { GetUserDefaultUILanguage() };
@@ -153,6 +153,30 @@ fn detect_system_language() -> Lang {
             return Lang::Zh;
         }
     }
+
+    #[cfg(target_os = "macos")]
+    {
+        use core_foundation::base::TCFType;
+        use core_foundation::string::CFString;
+        use core_foundation::array::{CFArray, CFArrayRef};
+
+        extern "C" {
+            fn CFLocaleCopyPreferredLanguages() -> CFArrayRef;
+        }
+
+        unsafe {
+            let languages = CFArray::<CFString>::wrap_under_create_rule(CFLocaleCopyPreferredLanguages());
+            if languages.len() > 0 {
+                if let Some(lang) = languages.get(0) {
+                    let lang_str = lang.to_string();
+                    if lang_str.starts_with("zh") {
+                        return Lang::Zh;
+                    }
+                }
+            }
+        }
+    }
+
     Lang::En
 }
 

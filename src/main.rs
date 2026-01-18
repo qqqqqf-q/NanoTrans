@@ -1,7 +1,7 @@
-//! NanoTrans - Lightweight Windows Translation Assistant
+//! NanoTrans - Lightweight Cross-Platform Translation Assistant
 //! Main entry point and event loop
 
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod caret;
 mod clipboard;
