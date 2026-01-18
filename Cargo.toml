@@ -2,25 +2,15 @@
 name = "nanotrans"
 version = "0.1.0"
 edition = "2021"
-description = "Lightweight Windows translation assistant with cursor-following popup"
+description = "Lightweight cross-platform translation assistant with cursor-following popup"
 authors = ["NanoTrans"]
 
 [dependencies]
 # UI Framework
 slint = "1.9"
 
-# Windows API
-windows = { version = "0.58", features = [
-    "Win32_Foundation",
-    "Win32_UI_WindowsAndMessaging",
-    "Win32_UI_Input_KeyboardAndMouse",
-    "Win32_Graphics_Gdi",
-    "Win32_System_Threading",
-    "Win32_Globalization"
-]}
-
 # System tray and hotkey
-tray-icon = "0.19"
+tray-icon = "0.21"
 global-hotkey = "0.6"
 
 # Clipboard
@@ -57,8 +47,26 @@ urlencoding = "2.1"
 # Async trait support
 async-trait = "0.1"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Threading",
+    "Win32_Globalization"
+]}
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.25"
+objc = "0.2"
+core-graphics = "0.23"
+core-foundation = "0.9"
+
 [build-dependencies]
 slint-build = "1.9"
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"
 
 [profile.release]
