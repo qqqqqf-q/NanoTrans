@@ -3,6 +3,7 @@
 
 import { TranslatePopup } from "popup.slint";
 import { SettingsWindow } from "settings.slint";
+import { Theme } from "theme.slint";
 
 // 隐藏的守护窗口，用于保持事件循环运行
 export component KeeperWindow inherits Window {
@@ -12,4 +13,4 @@ export component KeeperWindow inherits Window {
     visible: false;
 }
 
-export { TranslatePopup, SettingsWindow }
+export { TranslatePopup, SettingsWindow, Theme }

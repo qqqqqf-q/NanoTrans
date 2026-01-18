@@ -30,6 +30,7 @@ component HotkeyInput inherits Rectangle {
             text: is-recording ? recording-text : (hotkey != "" ? hotkey : placeholder);
             color: is-recording ? Theme.accent-primary : (hotkey != "" ? Theme.text-primary : Theme.text-placeholder);
             font-size: Theme.font-size-body;
+            font-family: Theme.font-family;
             vertical-alignment: center;
             horizontal-alignment: left;
         }
@@ -60,6 +61,7 @@ component SectionCard inherits Rectangle {
             text: title;
             color: Theme.text-secondary;
             font-size: Theme.font-size-small;
+            font-family: Theme.font-family;
             font-weight: 500;
         }
 
@@ -72,6 +74,7 @@ export component SettingsWindow inherits Window {
     width: 600px;
     height: 700px;
     background: Theme.background-main;
+    default-font-family: Theme.font-family;
 
     // Properties
     in-out property <string> hotkey: "Alt+Q";
@@ -144,6 +147,7 @@ export component SettingsWindow inherits Window {
             text: root.i18n-title;
             color: Theme.text-primary;
             font-size: Theme.font-size-large;
+            font-family: Theme.font-family;
             font-weight: 700;
         }
 
@@ -220,6 +224,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-google-hint;
                                     color: Theme.accent-primary;
                                     font-size: Theme.font-size-body;
+                                    font-family: Theme.font-family;
                                     vertical-alignment: center;
                                 }
                             }
@@ -235,6 +240,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-api-key;
                                     color: Theme.text-muted;
                                     font-size: Theme.font-size-small;
+                                    font-family: Theme.font-family;
                                 }
                                 LineEdit {
                                     text <=> root.api-key;
@@ -247,6 +253,7 @@ export component SettingsWindow inherits Window {
                                 text: root.i18n-deepl-hint;
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-xs;
+                                font-family: Theme.font-family;
                             }
                         }
 
@@ -261,6 +268,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-api-base;
                                     color: Theme.text-muted;
                                     font-size: Theme.font-size-small;
+                                    font-family: Theme.font-family;
                                 }
                                 LineEdit {
                                     text <=> root.api-base;
@@ -275,6 +283,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-model;
                                     color: Theme.text-muted;
                                     font-size: Theme.font-size-small;
+                                    font-family: Theme.font-family;
                                 }
                                 LineEdit {
                                     text <=> root.model;
@@ -289,6 +298,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-api-key;
                                     color: Theme.text-muted;
                                     font-size: Theme.font-size-small;
+                                    font-family: Theme.font-family;
                                 }
                                 LineEdit {
                                     text <=> root.api-key;
@@ -315,6 +325,7 @@ export component SettingsWindow inherits Window {
                                 text: root.i18n-prompt-preset;
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-small;
+                                font-family: Theme.font-family;
                                 vertical-alignment: center;
                             }
 
@@ -341,6 +352,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-prompt-add;
                                     color: add-area.has-hover ? Theme.text-primary : Theme.text-secondary;
                                     font-size: Theme.font-size-body;
+                                    font-family: Theme.font-family;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                     animate color { duration: Theme.transition-fast; }
@@ -366,6 +378,7 @@ export component SettingsWindow inherits Window {
                                     text: root.i18n-prompt-delete;
                                     color: root.prompt-preset-deletable ? (delete-area.has-hover ? Theme.danger-text : Theme.text-secondary) : Theme.text-placeholder;
                                     font-size: Theme.font-size-body;
+                                    font-family: Theme.font-family;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
                                     animate color { duration: Theme.transition-fast; }
@@ -388,6 +401,7 @@ export component SettingsWindow inherits Window {
                                 text: root.i18n-prompt-name;
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-small;
+                                font-family: Theme.font-family;
                             }
                             LineEdit {
                                 text <=> root.prompt-preset-name;
@@ -401,6 +415,7 @@ export component SettingsWindow inherits Window {
                                 text: root.i18n-prompt-system;
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-small;
+                                font-family: Theme.font-family;
                             }
                             TextEdit {
                                 height: 120px;
@@ -415,6 +430,7 @@ export component SettingsWindow inherits Window {
                                 text: root.i18n-prompt-user;
                                 color: Theme.text-muted;
                                 font-size: Theme.font-size-small;
+                                font-family: Theme.font-family;
                             }
                             TextEdit {
                                 height: 100px;
@@ -427,6 +443,7 @@ export component SettingsWindow inherits Window {
                             text: root.i18n-prompt-vars;
                             color: Theme.text-placeholder;
                             font-size: Theme.font-size-small;
+                            font-family: Theme.font-family;
                         }
                     }
                 }
@@ -453,6 +470,7 @@ export component SettingsWindow inherits Window {
                     text: root.i18n-cancel;
                     color: cancel-area.has-hover ? Theme.text-primary : Theme.text-secondary;
                     font-size: Theme.font-size-body;
+                    font-family: Theme.font-family;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                     animate color { duration: Theme.transition-fast; }
@@ -475,6 +493,7 @@ export component SettingsWindow inherits Window {
                     text: root.i18n-save;
                     color: #FFFFFF;
                     font-size: Theme.font-size-body;
+                    font-family: Theme.font-family;
                     font-weight: 600;
                     horizontal-alignment: center;
                     vertical-alignment: center;

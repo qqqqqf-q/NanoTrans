@@ -11,6 +11,7 @@ export component TranslatePopup inherits Window {
     width: 380px;
     min-height: 160px;
     background: transparent;
+    default-font-family: Theme.font-family;
 
     // Input properties
     in property <string> source-text: "";
@@ -67,6 +68,7 @@ export component TranslatePopup inherits Window {
                     text: root.i18n-provider-label;
                     color: Theme.text-secondary;
                     font-size: 12px;
+                    font-family: Theme.font-family;
                     vertical-alignment: center;
                 }
 
@@ -95,6 +97,7 @@ export component TranslatePopup inherits Window {
                         text: "S";
                         color: settings-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
                         font-size: 12px;
+                        font-family: Theme.font-family;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -117,6 +120,7 @@ export component TranslatePopup inherits Window {
                         text: "X";
                         color: close-touch.has-hover ? Theme.danger-text : Theme.text-secondary;
                         font-size: 14px;
+                        font-family: Theme.font-family;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -145,6 +149,7 @@ export component TranslatePopup inherits Window {
                         text: root.source-text;
                         color: Theme.text-secondary;
                         font-size: 11px;
+                        font-family: Theme.font-family;
                         overflow: elide;
                         vertical-alignment: center;
                     }
@@ -166,6 +171,7 @@ export component TranslatePopup inherits Window {
                         text: root.i18n-translating;
                         color: Theme.accent-primary;
                         font-size: 13px;
+                        font-family: Theme.font-family;
                         vertical-alignment: center;
                     }
                 }
@@ -186,6 +192,7 @@ export component TranslatePopup inherits Window {
                         text: root.error-message;
                         color: Theme.danger-text;
                         font-size: 11px;
+                        font-family: Theme.font-family;
                         wrap: word-wrap;
                         vertical-alignment: center;
                     }
@@ -209,6 +216,7 @@ export component TranslatePopup inherits Window {
                         text: root.translated-text;
                         color: Theme.text-primary;
                         font-size: 13px;
+                        font-family: Theme.font-family;
                         wrap: word-wrap;
                     }
                 }
@@ -241,6 +249,7 @@ export component TranslatePopup inherits Window {
                         text: root.i18n-copy;
                         color: copy-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
                         font-size: 11px;
+                        font-family: Theme.font-family;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -264,6 +273,7 @@ export component TranslatePopup inherits Window {
                         text: root.i18n-apply;
                         color: #ffffff;
                         font-size: 11px;
+                        font-family: Theme.font-family;
                         font-weight: 600;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -283,6 +293,7 @@ export component TranslatePopup inherits Window {
                 text: root.i18n-hint;
                 color: Theme.text-muted;
                 font-size: 9px;
+                font-family: Theme.font-family;
                 horizontal-alignment: center;
             }
         }
