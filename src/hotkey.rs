@@ -2,15 +2,30 @@
 //! Uses global-hotkey crate for cross-platform hotkey support
 
 use anyhow::Result;
-use global_hotkey::{
-    hotkey::{Code, HotKey, Modifiers},
-    GlobalHotKeyEvent, GlobalHotKeyManager,
-};
+use crossbeam_channel::Receiver;
+use global_hotkey::hotkey::{Code, HotKey, Modifiers};
+#[cfg(not(target_os = "macos"))]
+use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager};
+#[cfg(target_os = "macos")]
+use crate::input;
 
 /// Default hotkey: Alt + Q
 pub const DEFAULT_HOTKEY: &str = "Alt+Q";
 
+#[cfg(target_os = "macos")]
+pub type HotkeyEvent = ();
+
+#[cfg(not(target_os = "macos"))]
+pub type HotkeyEvent = GlobalHotKeyEvent;
+
 /// Hotkey manager wrapper
+#[cfg(target_os = "macos")]
+pub struct HotkeyManager {
+    current_hotkey: String,
+}
+
+/// Hotkey manager wrapper
+#[cfg(not(target_os = "macos"))]
 pub struct HotkeyManager {
     manager: GlobalHotKeyManager,
     translate_hotkey: HotKey,
@@ -18,6 +33,32 @@ pub struct HotkeyManager {
     current_hotkey: String,
 }
 
+#[cfg(target_os = "macos")]
+impl HotkeyManager {
+    /// Create a new hotkey manager with the specified hotkey string
+    pub fn new(hotkey_str: &str) -> Result<Self> {
+        input::set_active_hotkey(hotkey_str)?;
+        Ok(Self { current_hotkey: hotkey_str.to_lowercase() })
+    }
+
+    /// Check if the event matches our translate hotkey
+    pub fn is_translate_hotkey(&self, _event: &HotkeyEvent) -> bool {
+        true
+    }
+
+    /// Update the hotkey binding
+    pub fn update_hotkey(&mut self, hotkey_str: &str) -> Result<()> {
+        let normalized = hotkey_str.to_lowercase();
+        if normalized == self.current_hotkey {
+            return Ok(());
+        }
+        input::set_active_hotkey(hotkey_str)?;
+        self.current_hotkey = normalized;
+        Ok(())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
 impl HotkeyManager {
     /// Create a new hotkey manager with the specified hotkey string
     pub fn new(hotkey_str: &str) -> Result<Self> {
@@ -37,7 +78,7 @@ impl HotkeyManager {
     }
 
     /// Check if the event matches our translate hotkey
-    pub fn is_translate_hotkey(&self, event: &GlobalHotKeyEvent) -> bool {
+    pub fn is_translate_hotkey(&self, event: &HotkeyEvent) -> bool {
         event.id == self.translate_hotkey_id
     }
 
@@ -63,6 +104,7 @@ impl HotkeyManager {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 impl Drop for HotkeyManager {
     fn drop(&mut self) {
         let _ = self.manager.unregister(self.translate_hotkey);
@@ -83,9 +125,9 @@ pub fn parse_hotkey(hotkey_str: &str) -> Result<HotKey> {
     for part in parts {
         match part.to_lowercase().as_str() {
             "ctrl" | "control" => modifiers |= Modifiers::CONTROL,
-            "alt" => modifiers |= Modifiers::ALT,
+            "alt" | "option" | "opt" => modifiers |= Modifiers::ALT,
             "shift" => modifiers |= Modifiers::SHIFT,
-            "win" | "super" | "meta" => modifiers |= Modifiers::META,
+            "win" | "super" | "meta" | "cmd" | "command" => modifiers |= Modifiers::META,
             key => {
                 key_code = Some(parse_key_code(key)?);
             }
@@ -184,8 +226,15 @@ fn parse_key_code(key: &str) -> Result<Code> {
 }
 
 /// Get the global hotkey event receiver
-pub fn hotkey_event_receiver() -> crossbeam_channel::Receiver<GlobalHotKeyEvent> {
-    GlobalHotKeyEvent::receiver().clone()
+pub fn hotkey_event_receiver() -> Receiver<HotkeyEvent> {
+    #[cfg(target_os = "macos")]
+    {
+        return input::hotkey_event_receiver();
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        return GlobalHotKeyEvent::receiver().clone();
+    }
 }
 
 #[cfg(test)]
@@ -199,6 +248,12 @@ mod tests {
 
         let hotkey2 = parse_hotkey("Ctrl+Shift+T").unwrap();
         assert!(hotkey2.id() > 0);
+
+        let hotkey3 = parse_hotkey("Cmd+Shift+T").unwrap();
+        assert!(hotkey3.id() > 0);
+
+        let hotkey4 = parse_hotkey("Option+Q").unwrap();
+        assert!(hotkey4.id() > 0);
     }
 
     #[test]

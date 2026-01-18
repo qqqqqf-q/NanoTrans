@@ -16,6 +16,20 @@ const KEY_DELAY_MS: u64 = 10;
 static CTRL_V_DETECTED: AtomicBool = AtomicBool::new(false);
 static HOTKEY_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 static CAPTURED_HOTKEY: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(target_os = "macos")]
+static ACTIVE_HOTKEY: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(target_os = "macos")]
+static HOTKEY_EVENT_CHANNEL: Lazy<(
+    crossbeam_channel::Sender<()>,
+    crossbeam_channel::Receiver<()>,
+)> = Lazy::new(|| crossbeam_channel::unbounded());
+#[cfg(target_os = "macos")]
+static MONITOR_ERROR_CHANNEL: Lazy<(
+    crossbeam_channel::Sender<String>,
+    crossbeam_channel::Receiver<String>,
+)> = Lazy::new(|| crossbeam_channel::unbounded());
+#[cfg(target_os = "macos")]
+static MONITOR_ERROR_REPORTED: AtomicBool = AtomicBool::new(false);
 
 pub fn start_hotkey_capture() {
     HOTKEY_CAPTURE_ACTIVE.store(true, Ordering::SeqCst);
@@ -32,6 +46,23 @@ pub fn get_captured_hotkey() -> Option<String> {
     CAPTURED_HOTKEY.lock().unwrap().take()
 }
 
+#[cfg(target_os = "macos")]
+pub fn set_active_hotkey(hotkey: &str) -> anyhow::Result<()> {
+    let normalized = normalize_hotkey_string(hotkey)?;
+    *ACTIVE_HOTKEY.lock().unwrap() = Some(normalized);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub fn hotkey_event_receiver() -> crossbeam_channel::Receiver<()> {
+    HOTKEY_EVENT_CHANNEL.1.clone()
+}
+
+#[cfg(target_os = "macos")]
+pub fn keyboard_monitor_error_receiver() -> crossbeam_channel::Receiver<String> {
+    MONITOR_ERROR_CHANNEL.1.clone()
+}
+
 pub fn check_ctrl_v_pressed() -> bool {
     CTRL_V_DETECTED.swap(false, Ordering::SeqCst)
 }
@@ -45,6 +76,95 @@ fn log_hotkey(msg: &str) {
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
             let _ = writeln!(file, "[{}] {}", ts, msg);
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn normalize_hotkey_string(hotkey: &str) -> anyhow::Result<String> {
+    let mut has_cmd = false;
+    let mut has_ctrl = false;
+    let mut has_alt = false;
+    let mut has_shift = false;
+    let mut key_name: Option<&'static str> = None;
+
+    for part in hotkey.split('+') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        match part.to_lowercase().as_str() {
+            "cmd" | "command" => has_cmd = true,
+            "ctrl" | "control" => has_ctrl = true,
+            "alt" | "option" | "opt" => has_alt = true,
+            "shift" => has_shift = true,
+            key => {
+                if key_name.is_some() {
+                    anyhow::bail!("Hotkey contains multiple main keys");
+                }
+                key_name = normalize_key_name(key);
+                if key_name.is_none() {
+                    anyhow::bail!("Unknown key: {}", part);
+                }
+            }
+        }
+    }
+
+    if key_name.is_none() {
+        anyhow::bail!("Hotkey missing main key");
+    }
+    if !(has_cmd || has_ctrl || has_alt || has_shift) {
+        anyhow::bail!("Hotkey must include at least one modifier");
+    }
+
+    let mut out = String::new();
+    if has_cmd { out.push_str("Cmd+"); }
+    if has_ctrl { out.push_str("Ctrl+"); }
+    if has_alt { out.push_str("Alt+"); }
+    if has_shift { out.push_str("Shift+"); }
+    out.push_str(key_name.unwrap());
+    Ok(out)
+}
+
+#[cfg(target_os = "macos")]
+fn report_keyboard_monitor_error(message: &str) {
+    if MONITOR_ERROR_REPORTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let _ = MONITOR_ERROR_CHANNEL.0.send(message.to_string());
+}
+
+#[cfg(target_os = "macos")]
+fn normalize_key_name(key: &str) -> Option<&'static str> {
+    match key.to_lowercase().as_str() {
+        "a" => Some("A"), "b" => Some("B"), "c" => Some("C"), "d" => Some("D"),
+        "e" => Some("E"), "f" => Some("F"), "g" => Some("G"), "h" => Some("H"),
+        "i" => Some("I"), "j" => Some("J"), "k" => Some("K"), "l" => Some("L"),
+        "m" => Some("M"), "n" => Some("N"), "o" => Some("O"), "p" => Some("P"),
+        "q" => Some("Q"), "r" => Some("R"), "s" => Some("S"), "t" => Some("T"),
+        "u" => Some("U"), "v" => Some("V"), "w" => Some("W"), "x" => Some("X"),
+        "y" => Some("Y"), "z" => Some("Z"),
+        "0" => Some("0"), "1" => Some("1"), "2" => Some("2"), "3" => Some("3"),
+        "4" => Some("4"), "5" => Some("5"), "6" => Some("6"), "7" => Some("7"),
+        "8" => Some("8"), "9" => Some("9"),
+        "f1" => Some("F1"), "f2" => Some("F2"), "f3" => Some("F3"),
+        "f4" => Some("F4"), "f5" => Some("F5"), "f6" => Some("F6"),
+        "f7" => Some("F7"), "f8" => Some("F8"), "f9" => Some("F9"),
+        "f10" => Some("F10"), "f11" => Some("F11"), "f12" => Some("F12"),
+        "space" | "spacebar" => Some("Space"),
+        "enter" | "return" => Some("Enter"),
+        "tab" => Some("Tab"),
+        "escape" | "esc" => Some("Escape"),
+        "backspace" => Some("Backspace"),
+        "delete" | "del" => Some("Delete"),
+        "home" => Some("Home"),
+        "end" => Some("End"),
+        "pageup" | "pgup" => Some("PageUp"),
+        "pagedown" | "pgdn" => Some("PageDown"),
+        "left" => Some("Left"),
+        "right" => Some("Right"),
+        "up" => Some("Up"),
+        "down" => Some("Down"),
+        _ => None,
     }
 }
 
@@ -268,13 +388,21 @@ mod platform_impl {
     pub fn start_keyboard_monitor() {
         thread::spawn(|| {
             unsafe {
-                let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0);
+                let module = windows::Win32::System::LibraryLoader::GetModuleHandleW(None);
+                let hook = SetWindowsHookExW(
+                    WH_KEYBOARD_LL,
+                    Some(keyboard_hook_proc),
+                    module.unwrap_or_default(),
+                    0,
+                );
                 if hook.is_ok() {
                     let mut msg = std::mem::zeroed();
                     while windows::Win32::UI::WindowsAndMessaging::GetMessageW(&mut msg, None, 0, 0).as_bool() {
                         let _ = windows::Win32::UI::WindowsAndMessaging::TranslateMessage(&msg);
                         windows::Win32::UI::WindowsAndMessaging::DispatchMessageW(&msg);
                     }
+                } else {
+                    super::log_hotkey("keyboard hook failed");
                 }
             }
         });
@@ -328,17 +456,197 @@ mod platform_impl {
 #[cfg(target_os = "macos")]
 mod platform_impl {
     use super::*;
-    use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
+    use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
+    use core_graphics::event::{
+        CGEvent, CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions,
+        CGEventTapPlacement, CGEventType, EventField,
+    };
     use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
     pub fn poll_hotkey_capture() -> Option<String> {
-        // macOS 下暂不支持轮询式热键捕获，返回 None
         None
     }
 
+    fn is_modifier_key(keycode: u16) -> bool {
+        matches!(
+            keycode,
+            54 | 55 | 56 | 60 | 57 | 58 | 61 | 59 | 62 | 63
+        )
+    }
+
+    fn keycode_to_name(keycode: u16) -> Option<&'static str> {
+        match keycode {
+            0 => Some("A"),
+            1 => Some("S"),
+            2 => Some("D"),
+            3 => Some("F"),
+            4 => Some("H"),
+            5 => Some("G"),
+            6 => Some("Z"),
+            7 => Some("X"),
+            8 => Some("C"),
+            9 => Some("V"),
+            11 => Some("B"),
+            12 => Some("Q"),
+            13 => Some("W"),
+            14 => Some("E"),
+            15 => Some("R"),
+            16 => Some("Y"),
+            17 => Some("T"),
+            18 => Some("1"),
+            19 => Some("2"),
+            20 => Some("3"),
+            21 => Some("4"),
+            22 => Some("6"),
+            23 => Some("5"),
+            25 => Some("9"),
+            26 => Some("7"),
+            28 => Some("8"),
+            29 => Some("0"),
+            31 => Some("O"),
+            32 => Some("U"),
+            34 => Some("I"),
+            35 => Some("P"),
+            36 => Some("Enter"),
+            37 => Some("L"),
+            38 => Some("J"),
+            40 => Some("K"),
+            45 => Some("N"),
+            46 => Some("M"),
+            48 => Some("Tab"),
+            49 => Some("Space"),
+            51 => Some("Backspace"),
+            53 => Some("Escape"),
+            96 => Some("F5"),
+            97 => Some("F6"),
+            98 => Some("F7"),
+            99 => Some("F3"),
+            100 => Some("F8"),
+            101 => Some("F9"),
+            103 => Some("F11"),
+            109 => Some("F10"),
+            111 => Some("F12"),
+            115 => Some("Home"),
+            116 => Some("PageUp"),
+            117 => Some("Delete"),
+            118 => Some("F4"),
+            119 => Some("End"),
+            120 => Some("F2"),
+            121 => Some("PageDown"),
+            122 => Some("F1"),
+            123 => Some("Left"),
+            124 => Some("Right"),
+            125 => Some("Down"),
+            126 => Some("Up"),
+            _ => None,
+        }
+    }
+
     pub fn start_keyboard_monitor() {
-        // macOS 下键盘监控需要 Accessibility 权限
-        // 这里提供简化实现，实际使用时需要用户授权
+        thread::spawn(|| {
+            let tap = CGEventTap::new(
+                CGEventTapLocation::Session,
+                CGEventTapPlacement::HeadInsertEventTap,
+                CGEventTapOptions::ListenOnly,
+                vec![CGEventType::KeyDown],
+                |_proxy, _event_type, event| {
+                    let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE) as u16;
+                    let flags = event.get_flags();
+                    let capture_active = super::HOTKEY_CAPTURE_ACTIVE.load(Ordering::SeqCst);
+
+                    if capture_active {
+                        if keycode == 53 {
+                            super::HOTKEY_CAPTURE_ACTIVE.store(false, Ordering::SeqCst);
+                            *super::CAPTURED_HOTKEY.lock().unwrap() = Some(String::new());
+                            super::log_hotkey("cancel capture (Esc)");
+                            return None;
+                        }
+
+                        if !is_modifier_key(keycode) {
+                            let has_cmd = flags.contains(CGEventFlags::CGEventFlagCommand);
+                            let has_ctrl = flags.contains(CGEventFlags::CGEventFlagControl);
+                            let has_alt = flags.contains(CGEventFlags::CGEventFlagAlternate);
+                            let has_shift = flags.contains(CGEventFlags::CGEventFlagShift);
+
+                            if has_cmd || has_ctrl || has_alt || has_shift {
+                                if let Some(key_name) = keycode_to_name(keycode) {
+                                    let mut hotkey = String::new();
+                                    if has_cmd { hotkey.push_str("Cmd+"); }
+                                    if has_ctrl { hotkey.push_str("Ctrl+"); }
+                                    if has_alt { hotkey.push_str("Alt+"); }
+                                    if has_shift { hotkey.push_str("Shift+"); }
+                                    hotkey.push_str(key_name);
+
+                                    super::HOTKEY_CAPTURE_ACTIVE.store(false, Ordering::SeqCst);
+                                    *super::CAPTURED_HOTKEY.lock().unwrap() = Some(hotkey.clone());
+                                    super::log_hotkey(&format!("captured {}", hotkey));
+                                }
+                            }
+                        }
+                    } else {
+                        let active = super::ACTIVE_HOTKEY.lock().unwrap();
+                        if let Some(active_hotkey) = active.as_deref() {
+                            if !is_modifier_key(keycode) {
+                                let has_cmd = flags.contains(CGEventFlags::CGEventFlagCommand);
+                                let has_ctrl = flags.contains(CGEventFlags::CGEventFlagControl);
+                                let has_alt = flags.contains(CGEventFlags::CGEventFlagAlternate);
+                                let has_shift = flags.contains(CGEventFlags::CGEventFlagShift);
+
+                                if has_cmd || has_ctrl || has_alt || has_shift {
+                                    if let Some(key_name) = keycode_to_name(keycode) {
+                                        let mut hotkey = String::new();
+                                        if has_cmd { hotkey.push_str("Cmd+"); }
+                                        if has_ctrl { hotkey.push_str("Ctrl+"); }
+                                        if has_alt { hotkey.push_str("Alt+"); }
+                                        if has_shift { hotkey.push_str("Shift+"); }
+                                        hotkey.push_str(key_name);
+                                        if hotkey == active_hotkey {
+                                            let _ = super::HOTKEY_EVENT_CHANNEL.0.send(());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if keycode == 9 {
+                        if flags.contains(CGEventFlags::CGEventFlagCommand)
+                            || flags.contains(CGEventFlags::CGEventFlagControl)
+                        {
+                            super::CTRL_V_DETECTED.store(true, Ordering::SeqCst);
+                        }
+                    }
+                    None
+                },
+            );
+
+            let tap = match tap {
+                Ok(tap) => tap,
+                Err(err) => {
+                    let message = format!("keyboard monitor failed: {:?}", err);
+                    super::log_hotkey(&message);
+                    super::report_keyboard_monitor_error(&message);
+                    return;
+                }
+            };
+
+            let loop_source = match tap.mach_port.create_runloop_source(0) {
+                Ok(source) => source,
+                Err(err) => {
+                    let message = format!("keyboard runloop source failed: {:?}", err);
+                    super::log_hotkey(&message);
+                    super::report_keyboard_monitor_error(&message);
+                    return;
+                }
+            };
+
+            let current = CFRunLoop::get_current();
+            unsafe {
+                current.add_source(&loop_source, kCFRunLoopCommonModes);
+            }
+            tap.enable();
+            CFRunLoop::run_current();
+        });
     }
 
     pub fn send_ctrl_c() {

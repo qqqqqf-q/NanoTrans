@@ -198,6 +198,8 @@ fn main() -> Result<()> {
     let shared_state_menu = Arc::clone(&shared_state);
     let hotkey_manager_menu = Arc::clone(&hotkey_manager);
     let popup_weak_ctrlv = popup_weak.clone();
+    #[cfg(target_os = "macos")]
+    let monitor_error_rx = input::keyboard_monitor_error_receiver();
 
     // 启动键盘监控（监控 Ctrl+V）
     input::start_keyboard_monitor();
@@ -240,17 +242,18 @@ fn main() -> Result<()> {
             if win.get_hotkey_recording() {
                 if let Some(polled) = input::poll_hotkey_capture() {
                     win.set_hotkey_recording(false);
-                    if !polled.is_empty() {
-                        win.set_hotkey(SharedString::from(&polled));
-                    }
+                    apply_captured_hotkey(win, &hotkey_manager_timer, &polled);
                 }
                 if let Some(captured) = input::get_captured_hotkey() {
                     win.set_hotkey_recording(false);
-                    if !captured.is_empty() {
-                        win.set_hotkey(SharedString::from(&captured));
-                    }
+                    apply_captured_hotkey(win, &hotkey_manager_timer, &captured);
                 }
             }
+        }
+
+        #[cfg(target_os = "macos")]
+        if let Ok(reason) = monitor_error_rx.try_recv() {
+            show_macos_permission_alert_once(&reason);
         }
     });
 
@@ -601,12 +604,21 @@ fn open_settings_window(
     // Handle cancel
     let settings_window_cancel = Rc::clone(settings_window);
     let shared_state_cancel = Arc::clone(shared_state);
+    let hotkey_manager_cancel = Arc::clone(hotkey_manager);
     let win_weak_cancel = win.as_weak();
     win.on_cancel_settings(move || {
         // Restore original language on cancel
         let state = shared_state_cancel.lock().unwrap();
         i18n::init(&state.config.ui_language);
         drop(state);
+
+        if let Ok(state) = shared_state_cancel.lock() {
+            if let Ok(mut mgr) = hotkey_manager_cancel.lock() {
+                if let Err(err) = mgr.update_hotkey(&state.config.hotkey) {
+                    eprintln!("取消设置时恢复全局快捷键失败: {}", err);
+                }
+            }
+        }
 
         input::stop_hotkey_capture();
         if let Some(w) = win_weak_cancel.upgrade() {
@@ -700,6 +712,104 @@ fn handle_translate_hotkey(
                 }
             });
         });
+    }
+}
+
+fn apply_captured_hotkey(
+    win: &SettingsWindow,
+    hotkey_manager: &Arc<Mutex<HotkeyManager>>,
+    hotkey: &str,
+) {
+    if hotkey.is_empty() {
+        return;
+    }
+    let previous = win.get_hotkey().to_string();
+    let hotkey_result = hotkey_manager
+        .lock()
+        .map_err(|e| format!("hotkey manager unavailable: {}", e))
+        .and_then(|mut mgr| mgr.update_hotkey(hotkey).map_err(|e| e.to_string()));
+
+    if let Err(err) = hotkey_result {
+        eprintln!("预览更新全局快捷键失败: {}", err);
+        win.set_hotkey(SharedString::from(&previous));
+        return;
+    }
+
+    win.set_hotkey(SharedString::from(hotkey));
+}
+
+#[cfg(target_os = "macos")]
+fn show_macos_permission_alert_once(reason: &str) {
+    use std::sync::Once;
+
+    static SHOWN: Once = Once::new();
+    let reason = reason.to_string();
+    SHOWN.call_once(|| {
+        show_macos_permission_alert(&reason);
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn show_macos_permission_alert(reason: &str) {
+    use cocoa::appkit::NSApp;
+    use cocoa::base::{id, nil};
+    use cocoa::foundation::{NSAutoreleasePool, NSString};
+    use objc::{class, msg_send, sel, sel_impl};
+    use objc::runtime::YES;
+
+    const ALERT_INPUT_MONITOR: i64 = 1000;
+    const ALERT_ACCESSIBILITY: i64 = 1001;
+
+    unsafe {
+        let _pool = NSAutoreleasePool::new(nil);
+        let app = NSApp();
+        let _: () = msg_send![app, activateIgnoringOtherApps: YES];
+
+        let alert: id = msg_send![class!(NSAlert), alloc];
+        let alert: id = msg_send![alert, init];
+
+        let title = NSString::alloc(nil).init_str("需要系统权限");
+        let info = NSString::alloc(nil).init_str(
+            "NanoTrans 无法建立键盘监听，快捷键不可用。\n请在 系统设置 > 隐私与安全性 > 输入监控 与 辅助功能 中允许 NanoTrans，然后重启应用。"
+        );
+        let _: () = msg_send![alert, setMessageText: title];
+        let _: () = msg_send![alert, setInformativeText: info];
+
+        let btn_input = NSString::alloc(nil).init_str("打开输入监控");
+        let btn_access = NSString::alloc(nil).init_str("打开辅助功能");
+        let btn_later = NSString::alloc(nil).init_str("稍后");
+        let _: id = msg_send![alert, addButtonWithTitle: btn_input];
+        let _: id = msg_send![alert, addButtonWithTitle: btn_access];
+        let _: id = msg_send![alert, addButtonWithTitle: btn_later];
+
+        let response: i64 = msg_send![alert, runModal];
+        if response == ALERT_INPUT_MONITOR {
+            open_system_settings("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent");
+        } else if response == ALERT_ACCESSIBILITY {
+            open_system_settings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+        }
+    }
+
+    if !reason.is_empty() {
+        eprintln!("keyboard monitor error: {}", reason);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn open_system_settings(url: &str) {
+    use cocoa::base::{id, nil};
+    use cocoa::foundation::{NSAutoreleasePool, NSString};
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let _pool = NSAutoreleasePool::new(nil);
+        let ns_url_str = NSString::alloc(nil).init_str(url);
+        let ns_url: id = msg_send![class!(NSURL), URLWithString: ns_url_str];
+        if ns_url == nil {
+            return;
+        }
+        let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let _: bool = msg_send![workspace, openURL: ns_url];
     }
 }
 
