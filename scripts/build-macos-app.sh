@@ -51,6 +51,8 @@ cat > "${APP_DIR}/Contents/Info.plist" <<EOF
   <string>${VERSION}</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.productivity</string>
+  <key>LSUIElement</key>
+  <true/>
 </dict>
 </plist>
 EOF
