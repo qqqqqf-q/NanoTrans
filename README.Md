@@ -5,6 +5,11 @@ NanoTrans 是一款跨平台的极致轻量化输入翻译助手，支持 Window
 #  项目仍在开发!!! 现版本不推荐试用哦~
 当前版本：0.1.0-alpha.1
 
+## 下载
+
+- Windows (exe): https://github.com/qqqqqf-q/NanoTrans/releases/download/latest/nanotrans.exe
+- macOS (app): https://github.com/qqqqqf-q/NanoTrans/releases/download/latest/NanoTrans-macOS.app.zip
+
 ## 平台支持
 
 - ✅ **Windows**: 完整功能支持，精确的文本光标位置检测
@@ -54,6 +59,9 @@ NanoTrans 是一款跨平台的极致轻量化输入翻译助手，支持 Window
 2. 添加 NanoTrans 到允许列表
 3. 重启应用程序
 
+若下载的 .app 无法打开，可执行：
+`xattr -dr com.apple.quarantine NanoTrans.app`
+
 ## 构建与开发
 
 若要自行编译并实现极致体积优化，请确保已安装 Rust 开发环境。
@@ -69,6 +77,12 @@ cargo build --release
 
 # Windows: 可选安装 WiX Toolset 用于生成 MSI 安装包
 # macOS: 编译后的二进制位于 target/release/nanotrans
+```
+
+macOS 打包 .app：
+
+```bash
+./scripts/build-macos-app.sh
 ```
 
 ## 体积优化说明
