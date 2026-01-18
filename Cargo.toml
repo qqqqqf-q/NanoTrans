@@ -1,6 +1,6 @@
 [package]
 name = "nanotrans"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2021"
 description = "Lightweight cross-platform translation assistant with cursor-following popup"
 authors = ["NanoTrans"]
