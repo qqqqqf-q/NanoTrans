@@ -10,7 +10,10 @@ use tray_icon::{
 };
 
 // 嵌入图标文件
-const ICON_BYTES: &[u8] = include_bytes!("../icon.ico");
+#[cfg(target_os = "windows")]
+const ICON_BYTES: &[u8] = include_bytes!("../assets/icons/icon.ico");
+#[cfg(target_os = "macos")]
+const ICON_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/tray.png"));
 
 /// Menu item IDs
 pub const MENU_SETTINGS: &str = "settings";
@@ -42,18 +45,24 @@ pub fn create_tray() -> Result<TrayIcon> {
     // Create tray icon
     let icon = create_default_icon();
 
-    let tray = TrayIconBuilder::new()
+    let mut builder = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
         .with_tooltip("NanoTrans - Translation Assistant")
-        .with_icon(icon)
-        .build()?;
+        .with_icon(icon);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.with_icon_as_template(true);
+    }
+
+    let tray = builder.build()?;
 
     Ok(tray)
 }
 
 /// Create a simple default icon (16x16 blue square with "T")
 fn create_default_icon() -> tray_icon::Icon {
-    // 从嵌入的 ico 文件加载图标
+    // 从嵌入的 png 文件加载图标
     let img = ImageReader::new(Cursor::new(ICON_BYTES))
         .with_guessed_format()
         .expect("Failed to guess icon format")
