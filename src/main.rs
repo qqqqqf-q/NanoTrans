@@ -32,6 +32,7 @@ struct SharedState {
 }
 
 fn main() -> Result<()> {
+    init_macos_font();
     // Load configuration
     let mut config = Config::load().unwrap_or_default();
 
@@ -64,6 +65,7 @@ fn main() -> Result<()> {
 
     // Create the translation popup window
     let popup = TranslatePopup::new()?;
+    apply_macos_font_family_popup(&popup);
     popup.hide()?;
 
     // Set i18n texts for popup
@@ -258,6 +260,65 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn init_macos_font() {
+    if std::env::var_os("SLINT_DEFAULT_FONT").is_some() {
+        return;
+    }
+    if let Some(path) = select_macos_font_path() {
+        std::env::set_var("SLINT_DEFAULT_FONT", path);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn init_macos_font() {}
+
+#[cfg(target_os = "macos")]
+fn select_macos_font_path() -> Option<&'static str> {
+    let candidates = [
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+    ];
+    candidates
+        .iter()
+        .copied()
+        .find(|path| std::path::Path::new(path).exists())
+}
+
+#[cfg(target_os = "macos")]
+fn apply_macos_font_family_popup(component: &TranslatePopup) {
+    if let Some(font_family) = select_macos_font_family() {
+        component.global::<crate::Theme>().set_font_family(SharedString::from(font_family));
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn apply_macos_font_family_settings(component: &SettingsWindow) {
+    if let Some(font_family) = select_macos_font_family() {
+        component.global::<crate::Theme>().set_font_family(SharedString::from(font_family));
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn select_macos_font_family() -> Option<&'static str> {
+    if std::path::Path::new("/System/Library/Fonts/Hiragino Sans GB.ttc").exists() {
+        return Some("Hiragino Sans GB");
+    }
+    if std::path::Path::new("/System/Library/Fonts/STHeiti Medium.ttc").exists()
+        || std::path::Path::new("/System/Library/Fonts/STHeiti Light.ttc").exists()
+    {
+        return Some("STHeiti");
+    }
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+fn apply_macos_font_family_popup(_component: &TranslatePopup) {}
+
+#[cfg(not(target_os = "macos"))]
+fn apply_macos_font_family_settings(_component: &SettingsWindow) {}
+
 /// Open the settings window
 fn open_settings_window(
     shared_state: &Arc<Mutex<SharedState>>,
@@ -329,6 +390,7 @@ fn open_settings_window(
         Ok(w) => w,
         Err(e) => { eprintln!("Failed to create settings: {}", e); return; }
     };
+    apply_macos_font_family_settings(&win);
 
     win.set_hotkey_recording(false);
     input::stop_hotkey_capture();
