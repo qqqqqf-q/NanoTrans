@@ -6,6 +6,18 @@ on:
       - main
     paths:
       - Cargo.toml
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: "强制构建（跳过版本变更检测）"
+        required: false
+        default: "false"
+        type: boolean
+      force_release:
+        description: "强制发布（会重建 latest）"
+        required: false
+        default: "false"
+        type: boolean
 
 permissions:
   contents: write
@@ -14,7 +26,8 @@ jobs:
   version-check:
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.version.outputs.changed }}
+      build: ${{ steps.flags.outputs.build }}
+      release: ${{ steps.flags.outputs.release }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
@@ -22,7 +35,7 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Check version change
+      - name: Read version
         id: version
         shell: bash
         run: |
@@ -32,15 +45,35 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Decide build and release
+        id: flags
+        shell: bash
+        run: |
+          build="false"
+          release="false"
+
           if git diff -U0 HEAD~1 HEAD -- Cargo.toml | grep -Eq '^\+version\s*='; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            build="true"
+            release="true"
           fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.force_build }}" = "true" ]; then
+              build="true"
+            fi
+            if [ "${{ inputs.force_release }}" = "true" ]; then
+              build="true"
+              release="true"
+            fi
+          fi
+
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
 
   build-windows:
     needs: version-check
-    if: needs.version-check.outputs.changed == 'true'
+    if: needs.version-check.outputs.build == 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -71,7 +104,7 @@ jobs:
 
   build-macos:
     needs: version-check
-    if: needs.version-check.outputs.changed == 'true'
+    if: needs.version-check.outputs.build == 'true'
     runs-on: macos-latest
     env:
       APP_VERSION: ${{ needs.version-check.outputs.version }}
@@ -150,7 +183,7 @@ jobs:
 
   release:
     needs: [version-check, build-windows, build-macos]
-    if: needs.version-check.outputs.changed == 'true'
+    if: needs.version-check.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
