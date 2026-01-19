@@ -53,6 +53,8 @@ pub enum UILanguage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub hotkey: String,
+    #[serde(default)]
+    pub hotkey_log_enabled: bool,
     pub target_lang: String,
     pub source_lang: String,
     pub auto_detect: bool,
@@ -70,6 +72,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             hotkey: "Alt+Q".to_string(),
+            hotkey_log_enabled: false,
             target_lang: "zh".to_string(),
             source_lang: String::new(),
             auto_detect: true,

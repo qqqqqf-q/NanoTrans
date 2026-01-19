@@ -16,6 +16,7 @@ const KEY_DELAY_MS: u64 = 10;
 static CTRL_V_DETECTED: AtomicBool = AtomicBool::new(false);
 static HOTKEY_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 static CAPTURED_HOTKEY: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+static HOTKEY_LOG_ENABLED: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "macos")]
 static ACTIVE_HOTKEY: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 #[cfg(target_os = "macos")]
@@ -67,7 +68,14 @@ pub fn check_ctrl_v_pressed() -> bool {
     CTRL_V_DETECTED.swap(false, Ordering::SeqCst)
 }
 
+pub fn set_hotkey_log_enabled(enabled: bool) {
+    HOTKEY_LOG_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
 fn log_hotkey(msg: &str) {
+    if !HOTKEY_LOG_ENABLED.load(Ordering::SeqCst) {
+        return;
+    }
     let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
     if let Some(mut path) = dirs::config_dir() {
         path.push("NanoTrans");

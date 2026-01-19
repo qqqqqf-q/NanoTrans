@@ -39,6 +39,7 @@ fn main() -> Result<()> {
     init_macos_font();
     // Load configuration
     let mut config = Config::load().unwrap_or_default();
+    input::set_hotkey_log_enabled(config.hotkey_log_enabled);
 
     // Initialize i18n
     i18n::init(&config.ui_language);
@@ -389,6 +390,7 @@ fn open_settings_window(
         let config = &state.config;
 
         win.set_hotkey(SharedString::from(&config.hotkey));
+        win.set_hotkey_log_enabled(config.hotkey_log_enabled);
 
         let idx = config.provider_index(&config.active_provider_id).unwrap_or(0);
         let ptype = get_provider_type_index(idx);
@@ -534,6 +536,7 @@ fn open_settings_window(
             };
             let original_hotkey = config.hotkey.clone();
             config.hotkey = new_hotkey;
+            config.hotkey_log_enabled = w.get_hotkey_log_enabled();
 
             let idx = w.get_provider_index() as usize;
             if let Some(p) = config.providers.get_mut(idx) {
@@ -572,9 +575,11 @@ fn open_settings_window(
                 eprintln!("Failed to save config: {}", e);
             }
 
+            let hotkey_log_enabled = config.hotkey_log_enabled;
             if let Ok(mut state) = shared_state_save.lock() {
                 state.config = config;
             }
+            input::set_hotkey_log_enabled(hotkey_log_enabled);
 
             w.set_hotkey_recording(false);
             input::stop_hotkey_capture();
@@ -834,4 +839,7 @@ fn set_settings_i18n_texts(win: &SettingsWindow) {
     win.set_i18n_cancel(SharedString::from(t.cancel));
     win.set_i18n_save(SharedString::from(t.save));
     win.set_i18n_language(SharedString::from(t.ui_language));
+    win.set_i18n_hotkey_log_title(SharedString::from(t.hotkey_log_title));
+    win.set_i18n_hotkey_log_enable(SharedString::from(t.hotkey_log_enable));
+    win.set_i18n_hotkey_log_hint(SharedString::from(t.hotkey_log_hint));
 }

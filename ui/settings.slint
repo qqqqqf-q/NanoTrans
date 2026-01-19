@@ -1,7 +1,7 @@
 // NanoTrans Settings Window
 // Modern, unified provider configuration
 
-import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView, TextEdit } from "std-widgets.slint";
+import { VerticalBox, HorizontalBox, LineEdit, ComboBox, ScrollView, TextEdit, CheckBox } from "std-widgets.slint";
 import { Theme } from "./theme.slint";
 
 // Hotkey input component - displays hotkey and triggers recording via Rust
@@ -80,6 +80,7 @@ export component SettingsWindow inherits Window {
     // Properties
     in-out property <string> hotkey: "Alt+Q";
     in-out property <bool> hotkey-recording: false;
+    in-out property <bool> hotkey-log-enabled: false;
     in-out property <int> provider-index: 0;
     in-out property <string> api-key: "";
     in-out property <string> api-base: "";
@@ -118,6 +119,9 @@ export component SettingsWindow inherits Window {
     in property <string> i18n-cancel: "Cancel";
     in property <string> i18n-save: "Save";
     in property <string> i18n-language: "UI Language";
+    in property <string> i18n-hotkey-log-title: "Local Logs";
+    in property <string> i18n-hotkey-log-enable: "Enable hotkey log";
+    in property <string> i18n-hotkey-log-hint: "Write hotkey debug logs to a local file";
 
     // Prompt i18n
     in property <string> i18n-prompt-settings: "Prompt Settings";
@@ -184,6 +188,28 @@ export component SettingsWindow inherits Window {
                         recording-text: root.i18n-hotkey-recording;
                         clicked => {
                             root.start-hotkey-capture();
+                        }
+                    }
+                }
+
+                // Hotkey log
+                SectionCard {
+                    title: root.i18n-hotkey-log-title;
+                    height: 100px;
+
+                    VerticalBox {
+                        spacing: Theme.padding-xs;
+
+                        CheckBox {
+                            text: root.i18n-hotkey-log-enable;
+                            checked <=> root.hotkey-log-enabled;
+                        }
+
+                        Text {
+                            text: root.i18n-hotkey-log-hint;
+                            color: Theme.text-placeholder;
+                            font-size: Theme.font-size-small;
+                            font-family: Theme.font-family;
                         }
                     }
                 }

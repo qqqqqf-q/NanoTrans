@@ -43,6 +43,9 @@ pub struct Texts {
     pub cancel: &'static str,
     pub save: &'static str,
     pub ui_language: &'static str,
+    pub hotkey_log_title: &'static str,
+    pub hotkey_log_enable: &'static str,
+    pub hotkey_log_hint: &'static str,
 
     // Popup window
     pub translating: &'static str,
@@ -82,6 +85,9 @@ const TEXTS_EN: Texts = Texts {
     cancel: "Cancel",
     save: "Save",
     ui_language: "UI Language",
+    hotkey_log_title: "Local Logs",
+    hotkey_log_enable: "Enable hotkey log",
+    hotkey_log_hint: "Write hotkey debug logs to a local file",
 
     translating: "Translating...",
     copy: "Copy",
@@ -119,6 +125,9 @@ const TEXTS_ZH: Texts = Texts {
     cancel: "取消",
     save: "保存",
     ui_language: "界面语言",
+    hotkey_log_title: "本地日志",
+    hotkey_log_enable: "启用热键日志",
+    hotkey_log_hint: "仅写入本地调试日志，不会上报",
 
     translating: "翻译中...",
     copy: "复制",
