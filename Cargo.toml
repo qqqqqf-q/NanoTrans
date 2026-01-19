@@ -2,8 +2,9 @@
 name = "nanotrans"
 version = "0.1.0-alpha.2"
 edition = "2021"
-description = "Lightweight cross-platform translation assistant with cursor-following popup"
-authors = ["NanoTrans"]
+description = "\u6781\u81F4\u8F7B\u91CF\u5316\u8F93\u5165\u7FFB\u8BD1\u52A9\u624B --Built with Rust"
+authors = ["qqqqqf-q <qingf622@outlook.com>"]
+repository = "https://github.com/qqqqqf-q/NanoTrans"
 
 [dependencies]
 # UI Framework
@@ -73,6 +74,14 @@ resvg = "0.45.1"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"
+
+[package.metadata.winres]
+CompanyName = "qqqqqf-q"
+ProductName = "NanoTrans"
+FileDescription = "\u6781\u81F4\u8F7B\u91CF\u5316\u8F93\u5165\u7FFB\u8BD1\u52A9\u624B --Built with Rust"
+Comments = "https://github.com/qqqqqf-q/NanoTrans | qingf622@outlook.com"
+InternalName = "nanotrans"
+OriginalFilename = "nanotrans.exe"
 
 [profile.release]
 opt-level = "z"
