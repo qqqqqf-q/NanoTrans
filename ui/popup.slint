@@ -9,20 +9,17 @@ export component TranslatePopup inherits Window {
     no-frame: true;
     always-on-top: true;
     width: 380px;
-    min-height: 160px;
+    height: 220px;
     background: transparent;
     default-font-family: Theme.font-family;
+    default-font-size: Theme.font-size-small;
 
     // Input properties
     in property <string> source-text: "";
     in property <string> translated-text: "";
     in property <bool> loading: false;
     in property <string> error-message: "";
-    in-out property <int> current-provider-index: 0;
-    in property <[string]> provider-list: ["Google", "DeepL", "LLM"];
-
     // I18N text properties
-    in property <string> i18n-provider-label: "Provider:";
     in property <string> i18n-translating: "Translating...";
     in property <string> i18n-copy: "Copy";
     in property <string> i18n-apply: "Apply";
@@ -32,7 +29,6 @@ export component TranslatePopup inherits Window {
     callback apply-translation();
     callback close-popup();
     callback copy-result();
-    callback provider-changed(int);
     callback open-settings();
     callback drag-window(int, int);
 
@@ -63,25 +59,6 @@ export component TranslatePopup inherits Window {
                 height: 32px;
                 spacing: 8px;
 
-                // Provider selector dropdown
-                Text {
-                    text: root.i18n-provider-label;
-                    color: Theme.text-secondary;
-                    font-size: 12px;
-                    font-family: Theme.font-family;
-                    vertical-alignment: center;
-                }
-
-                ComboBox {
-                    width: 120px;
-                    model: root.provider-list;
-                    current-index <=> root.current-provider-index;
-                    selected(value) => {
-                        root.provider-changed(root.current-provider-index);
-                    }
-                }
-
-                // Spacer to push buttons to the right
                 Rectangle {
                     horizontal-stretch: 1;
                 }
@@ -135,23 +112,22 @@ export component TranslatePopup inherits Window {
 
             // Source text display
             if root.source-text != "" : Rectangle {
-                height: 32px;
+                min-height: 44px;
                 background: Theme.background-surface;
                 border-radius: Theme.radius-small;
                 border-width: 1px;
                 border-color: Theme.border-subtle;
 
-                HorizontalBox {
-                    padding-left: 10px;
-                    padding-right: 10px;
+                VerticalBox {
+                    padding: 10px;
 
                     Text {
                         text: root.source-text;
                         color: Theme.text-secondary;
-                        font-size: 11px;
+                        font-size: 12px;
                         font-family: Theme.font-family;
-                        overflow: elide;
-                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
                     }
                 }
             }

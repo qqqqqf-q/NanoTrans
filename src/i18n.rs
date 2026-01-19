@@ -45,7 +45,6 @@ pub struct Texts {
     pub ui_language: &'static str,
 
     // Popup window
-    pub provider_label: &'static str,
     pub translating: &'static str,
     pub copy: &'static str,
     pub apply: &'static str,
@@ -84,7 +83,6 @@ const TEXTS_EN: Texts = Texts {
     save: "Save",
     ui_language: "UI Language",
 
-    provider_label: "Provider:",
     translating: "Translating...",
     copy: "Copy",
     apply: "Apply",
@@ -122,7 +120,6 @@ const TEXTS_ZH: Texts = Texts {
     save: "保存",
     ui_language: "界面语言",
 
-    provider_label: "服务:",
     translating: "翻译中...",
     copy: "复制",
     apply: "应用",

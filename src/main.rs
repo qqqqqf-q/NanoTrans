@@ -15,7 +15,7 @@ mod tray;
 use anyhow::Result;
 use config::{Config, PromptPreset};
 use hotkey::HotkeyManager;
-use slint::{ComponentHandle, ModelRc, PhysicalPosition, SharedString, VecModel};
+use slint::{ComponentHandle, LogicalSize, ModelRc, PhysicalPosition, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -30,6 +30,10 @@ struct SharedState {
     original_clipboard: Option<String>,
     popup_shown_at: Option<std::time::Instant>,  // 窗口显示时间，用于防止立即关闭
 }
+
+// 与 popup.slint 的默认尺寸保持一致
+const POPUP_WIDTH: f32 = 380.0;
+const POPUP_HEIGHT: f32 = 220.0;
 
 fn main() -> Result<()> {
     init_macos_font();
@@ -70,16 +74,6 @@ fn main() -> Result<()> {
 
     // Set i18n texts for popup
     set_popup_i18n_texts(&popup);
-
-    // Set up provider list for popup
-    let provider_names: Vec<SharedString> = config.providers.iter()
-        .map(|p| SharedString::from(&p.name))
-        .collect();
-    popup.set_provider_list(ModelRc::new(VecModel::from(provider_names)));
-
-    // Set current provider index
-    let provider_idx = config.provider_index(&config.active_provider_id).unwrap_or(0) as i32;
-    popup.set_current_provider_index(provider_idx);
 
     // Create system tray
     let _tray = tray::create_tray()?;
@@ -145,18 +139,6 @@ fn main() -> Result<()> {
                 if !translated.is_empty() {
                     let _ = clipboard::simple::set_text(&translated);
                 }
-            }
-        }
-    });
-
-    // Handle provider changed in popup
-    let shared_state_provider = Arc::clone(&shared_state);
-    popup.on_provider_changed({
-        move |index| {
-            let mut state = shared_state_provider.lock().unwrap();
-            if let Some(provider) = state.config.providers.get(index as usize) {
-                state.config.active_provider_id = provider.id.clone();
-                let _ = state.config.save();
             }
         }
     });
@@ -641,6 +623,15 @@ fn get_provider_type_index(provider_idx: usize) -> i32 {
     }
 }
 
+fn popup_physical_size(popup: &TranslatePopup) -> (i32, i32) {
+    let mut size = popup.window().size();
+    if size.width == 0 || size.height == 0 {
+        popup.window().set_size(LogicalSize::new(POPUP_WIDTH, POPUP_HEIGHT));
+        size = popup.window().size();
+    }
+    (size.width as i32, size.height as i32)
+}
+
 /// Handle the translate hotkey press
 fn handle_translate_hotkey(
     popup_weak: &slint::Weak<TranslatePopup>,
@@ -673,16 +664,8 @@ fn handle_translate_hotkey(
         popup.set_loading(true);
 
         // 计算窗口位置：居中于鼠标上方，并确保不超出屏幕
-        let popup_width = 420;  // 与 popup.slint 中定义的宽度一致
-        let popup_height = 200; // 预估高度
+        let (popup_width, popup_height) = popup_physical_size(&popup);
         let (x, y) = caret::calculate_popup_position(cursor_x, cursor_y, popup_width, popup_height);
-        // Sync provider index from config
-        let provider_idx = {
-            let state = shared_state.lock().unwrap();
-            state.config.provider_index(&state.config.active_provider_id).unwrap_or(0) as i32
-        };
-        popup.set_current_provider_index(provider_idx);
-
         popup.window().set_position(PhysicalPosition::new(x, y));
         popup.show().ok();
 
@@ -816,7 +799,6 @@ fn open_system_settings(url: &str) {
 /// Set i18n texts for popup window
 fn set_popup_i18n_texts(popup: &TranslatePopup) {
     let t = i18n::t();
-    popup.set_i18n_provider_label(SharedString::from(t.provider_label));
     popup.set_i18n_translating(SharedString::from(t.translating));
     popup.set_i18n_copy(SharedString::from(t.copy));
     popup.set_i18n_apply(SharedString::from(t.apply));
