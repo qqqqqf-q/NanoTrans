@@ -1,11 +1,15 @@
 # NanoTrans
 
-NanoTrans 是一款跨平台的极致轻量化输入翻译助手，支持 Windows 和 macOS。它深度集成于系统底层，通过锁定输入光标位置提供即时的文本翻译与原地回填功能。
+NanoTrans 是一款跨平台的极致轻量化输入翻译助手，支持 Windows 和 macOS。它深度集成于系统底层，通过锁定输入光标位置提供即时的文本翻译与原地回填功能。  
+NanoTrans is a cross-platform, ultra-lightweight input translation helper compatible with Windows and macOS. It hooks into low-level system drivers to spot the caret position for instant translations and in-place refilling.
 
 #  项目仍在开发!!! 现版本不推荐试用哦~
-当前版本：0.1.0-alpha.2
+#  Project is still under active development; current build is not recommended for production use.
+版本(Version)：0.1.0-alpha.2
 
-## 下载
+[Read the English README](docs/README-eng.md)
+
+## 下载(Downloads)
 
 - Windows (exe): https://github.com/qqqqqf-q/NanoTrans/releases/download/latest/nanotrans.exe
 - macOS (app): https://github.com/qqqqqf-q/NanoTrans/releases/download/latest/NanoTrans-macOS.app.zip
