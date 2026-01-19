@@ -2,7 +2,6 @@
 
 NanoTrans is an ultra-lightweight, cross-platform input translation assistant for Windows and macOS. It integrates at the system level and locks onto the caret position to provide instant translation and in-place refilling.
 
-# Project is still under development and the current version is not recommended for trial use
 Current version: 0.1.0-alpha.2
 
 ## Download
@@ -68,7 +67,7 @@ To build from source and achieve minimal size, install the Rust toolchain first.
 
 ```bash
 # Get the source
-git clone https://github.com/yourname/NanoTrans.git
+git clone https://github.com/qqqqqf-q/NanoTrans.git
 cd NanoTrans
 
 # Release build

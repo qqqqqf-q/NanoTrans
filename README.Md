@@ -1,10 +1,8 @@
 # NanoTrans
 
 NanoTrans 是一款跨平台的极致轻量化输入翻译助手，支持 Windows 和 macOS。它深度集成于系统底层，通过锁定输入光标位置提供即时的文本翻译与原地回填功能。  
-NanoTrans is a cross-platform, ultra-lightweight input translation helper compatible with Windows and macOS. It hooks into low-level system drivers to spot the caret position for instant translations and in-place refilling.
+NanoTrans is a cross-platform, ultra-lightweight input translation helper compatible with Windows and macOS. It uses OS APIs to spot the caret position for instant translations and in-place refilling.
 
-#  项目仍在开发!!! 现版本不推荐试用哦~
-#  Project is still under active development; current build is not recommended for production use.
 版本(Version)：0.1.0-alpha.2
 
 [Read the English README](docs/README-eng.md)
@@ -72,7 +70,7 @@ NanoTrans is a cross-platform, ultra-lightweight input translation helper compat
 
 ```bash
 # 获取源码
-git clone https://github.com/yourname/NanoTrans.git
+git clone https://github.com/qqqqqf-q/NanoTrans.git
 cd NanoTrans
 
 # 编译发布版本
