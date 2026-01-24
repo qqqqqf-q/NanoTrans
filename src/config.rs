@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -259,6 +260,7 @@ impl Config {
     }
 
     pub fn normalize(&mut self) {
+        self.normalize_providers();
         if self.prompt_presets.is_empty() {
             self.prompt_presets = default_prompt_presets();
         }
@@ -268,6 +270,65 @@ impl Config {
                 .first()
                 .map(|p| p.id.clone())
                 .unwrap_or_else(default_active_prompt_preset_id);
+        }
+    }
+
+    fn normalize_providers(&mut self) {
+        let defaults = default_providers();
+        if self.providers.is_empty() {
+            self.providers = defaults;
+        } else {
+            let mut existing: HashMap<String, ProviderConfig> = self
+                .providers
+                .drain(..)
+                .map(|p| (p.id.clone(), p))
+                .collect();
+            let mut merged = Vec::with_capacity(defaults.len() + existing.len());
+            for def in defaults {
+                if let Some(mut saved) = existing.remove(&def.id) {
+                    saved.name = def.name;
+                    saved.provider_type = def.provider_type;
+                    saved.is_preset = def.is_preset;
+                    if saved.api_base.trim().is_empty() {
+                        saved.api_base = def.api_base;
+                    }
+                    if saved.model.trim().is_empty() {
+                        saved.model = def.model;
+                    }
+                    merged.push(saved);
+                } else {
+                    merged.push(def);
+                }
+            }
+            if !existing.is_empty() {
+                let mut extras: Vec<ProviderConfig> = existing.into_values().collect();
+                extras.sort_by(|a, b| a.id.cmp(&b.id));
+                merged.extend(extras);
+            }
+            self.providers = merged;
+        }
+
+        // 防止无关字段被写进不需要配置的服务里
+        for provider in &mut self.providers {
+            match provider.provider_type {
+                ProviderType::Google => {
+                    provider.api_base.clear();
+                    provider.api_key.clear();
+                    provider.model.clear();
+                }
+                ProviderType::DeepL => {
+                    provider.model.clear();
+                }
+                ProviderType::OpenAI | ProviderType::Anthropic => {}
+            }
+        }
+
+        if self.provider_index(&self.active_provider_id).is_none() {
+            self.active_provider_id = self
+                .providers
+                .first()
+                .map(|p| p.id.clone())
+                .unwrap_or_else(|| "google".to_string());
         }
     }
 }
