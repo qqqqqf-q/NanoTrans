@@ -86,7 +86,6 @@ export component SettingsWindow inherits Window {
     in-out property <string> api-base: "";
     in-out property <string> model: "";
     in property <[string]> provider-names: ["Google Translate", "DeepL", "Zhipu GLM", "OpenAI", "Anthropic", "Custom"];
-    in property <int> provider-type: 0;
 
     // Language selection
     in-out property <int> language-index: 0;
@@ -116,8 +115,8 @@ export component SettingsWindow inherits Window {
     in property <string> i18n-api-base: "API Base URL";
     in property <string> i18n-model: "Model";
     in property <string> i18n-model-placeholder: "e.g., gpt-4o-mini";
+    in property <string> i18n-apply: "Apply";
     in property <string> i18n-cancel: "Cancel";
-    in property <string> i18n-save: "Save";
     in property <string> i18n-language: "UI Language";
     in property <string> i18n-hotkey-log-title: "Local Logs";
     in property <string> i18n-hotkey-log-enable: "Enable hotkey log";
@@ -134,14 +133,15 @@ export component SettingsWindow inherits Window {
     in property <string> i18n-prompt-vars: "Vars: {{target_lang_name}} {{target_lang_code}} {{text}}";
 
     // Callbacks
-    callback save-settings();
     callback cancel-settings();
-    callback provider-selected(int);
-    callback language-selected(int);
+    callback provider-selected(string);
+    callback language-selected(string);
     callback start-hotkey-capture();
-    callback prompt-preset-selected(int);
+    callback prompt-preset-selected(string);
     callback add-prompt-preset();
     callback delete-prompt-preset();
+    callback settings-changed();
+    callback apply-api-settings();
 
     VerticalBox {
         padding: Theme.padding-large;
@@ -171,7 +171,7 @@ export component SettingsWindow inherits Window {
                         model: root.language-names;
                         current-index <=> root.language-index;
                         selected(val) => {
-                            root.language-selected(root.language-index);
+                            root.language-selected(val);
                         }
                     }
                 }
@@ -203,6 +203,7 @@ export component SettingsWindow inherits Window {
                         CheckBox {
                             text: root.i18n-hotkey-log-enable;
                             checked <=> root.hotkey-log-enabled;
+                            toggled => { root.settings-changed(); }
                         }
 
                         Text {
@@ -223,7 +224,7 @@ export component SettingsWindow inherits Window {
                         model: root.provider-names;
                         current-index <=> root.provider-index;
                         selected(val) => {
-                            root.provider-selected(root.provider-index);
+                            root.provider-selected(val);
                         }
                     }
                 }
@@ -237,7 +238,7 @@ export component SettingsWindow inherits Window {
                         spacing: 12px;
 
                         // Google - No config needed
-                        if root.provider-type == 0 : Rectangle {
+                        if root.provider-index == 0 : Rectangle {
                             background: Theme.accent-subtle;
                             border-radius: Theme.radius-small;
                             height: 48px;
@@ -258,7 +259,7 @@ export component SettingsWindow inherits Window {
                         }
 
                         // DeepL - Only API Key
-                        if root.provider-type == 1 : VerticalBox {
+                        if root.provider-index == 1 : VerticalBox {
                             spacing: 12px;
 
                             VerticalBox {
@@ -273,6 +274,7 @@ export component SettingsWindow inherits Window {
                                     text <=> root.api-key;
                                     placeholder-text: root.i18n-api-key-placeholder;
                                     input-type: password;
+                                    edited(text) => { root.settings-changed(); }
                                 }
                             }
 
@@ -282,14 +284,45 @@ export component SettingsWindow inherits Window {
                                 font-size: Theme.font-size-xs;
                                 font-family: Theme.font-family;
                             }
+
+                            HorizontalBox {
+                                alignment: end;
+                                height: 34px;
+
+                                Rectangle {
+                                    width: 70px;
+                                    height: 34px;
+                                    border-radius: Theme.radius-small;
+                                    background: apply-deepl-area.has-hover ? Theme.background-overlay : Theme.background-surface;
+                                    border-width: 1px;
+                                    border-color: apply-deepl-area.has-hover ? Theme.border-default : Theme.border-subtle;
+                                    animate background { duration: Theme.transition-fast; }
+                                    animate border-color { duration: Theme.transition-fast; }
+
+                                    Text {
+                                        text: root.i18n-apply;
+                                        color: apply-deepl-area.has-hover ? Theme.text-primary : Theme.text-secondary;
+                                        font-size: Theme.font-size-small;
+                                        font-family: Theme.font-family;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                        animate color { duration: Theme.transition-fast; }
+                                    }
+
+                                    apply-deepl-area := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.apply-api-settings(); }
+                                    }
+                                }
+                            }
                         }
 
                         // LLM Providers (Zhipu, OpenAI, Anthropic, Custom)
-                        if root.provider-type >= 2 : VerticalBox {
+                        if root.provider-index >= 2 : VerticalBox {
                             spacing: 12px;
 
                             // API Base (only for Custom)
-                            if root.provider-type == 5 : VerticalBox {
+                            if root.provider-index == 5 : VerticalBox {
                                 spacing: Theme.padding-xs;
                                 Text {
                                     text: root.i18n-api-base;
@@ -300,6 +333,7 @@ export component SettingsWindow inherits Window {
                                 LineEdit {
                                     text <=> root.api-base;
                                     placeholder-text: "https://api.example.com/v1";
+                                    edited(text) => { root.settings-changed(); }
                                 }
                             }
 
@@ -315,6 +349,7 @@ export component SettingsWindow inherits Window {
                                 LineEdit {
                                     text <=> root.model;
                                     placeholder-text: root.i18n-model-placeholder;
+                                    edited(text) => { root.settings-changed(); }
                                 }
                             }
 
@@ -331,6 +366,38 @@ export component SettingsWindow inherits Window {
                                     text <=> root.api-key;
                                     placeholder-text: root.i18n-api-key-placeholder;
                                     input-type: password;
+                                    edited(text) => { root.settings-changed(); }
+                                }
+                            }
+
+                            HorizontalBox {
+                                alignment: end;
+                                height: 34px;
+
+                                Rectangle {
+                                    width: 70px;
+                                    height: 34px;
+                                    border-radius: Theme.radius-small;
+                                    background: apply-api-area.has-hover ? Theme.background-overlay : Theme.background-surface;
+                                    border-width: 1px;
+                                    border-color: apply-api-area.has-hover ? Theme.border-default : Theme.border-subtle;
+                                    animate background { duration: Theme.transition-fast; }
+                                    animate border-color { duration: Theme.transition-fast; }
+
+                                    Text {
+                                        text: root.i18n-apply;
+                                        color: apply-api-area.has-hover ? Theme.text-primary : Theme.text-secondary;
+                                        font-size: Theme.font-size-small;
+                                        font-family: Theme.font-family;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                        animate color { duration: Theme.transition-fast; }
+                                    }
+
+                                    apply-api-area := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.apply-api-settings(); }
+                                    }
                                 }
                             }
                         }
@@ -361,7 +428,7 @@ export component SettingsWindow inherits Window {
                                 model: root.prompt-preset-names;
                                 current-index <=> root.prompt-preset-index;
                                 selected(val) => {
-                                    root.prompt-preset-selected(root.prompt-preset-index);
+                                    root.prompt-preset-selected(val);
                                 }
                             }
 
@@ -433,6 +500,7 @@ export component SettingsWindow inherits Window {
                             LineEdit {
                                 text <=> root.prompt-preset-name;
                                 placeholder-text: "自定义 1";
+                                edited(text) => { root.settings-changed(); }
                             }
                         }
 
@@ -448,6 +516,7 @@ export component SettingsWindow inherits Window {
                                 height: 120px;
                                 text <=> root.prompt-system-template;
                                 wrap: word-wrap;
+                                edited(text) => { root.settings-changed(); }
                             }
                         }
 
@@ -463,6 +532,7 @@ export component SettingsWindow inherits Window {
                                 height: 100px;
                                 text <=> root.prompt-user-template;
                                 wrap: word-wrap;
+                                edited(text) => { root.settings-changed(); }
                             }
                         }
 
@@ -506,29 +576,6 @@ export component SettingsWindow inherits Window {
                 cancel-area := TouchArea {
                     mouse-cursor: pointer;
                     clicked => { root.cancel-settings(); }
-                }
-            }
-
-            Rectangle {
-                width: 100px;
-                height: 40px;
-                border-radius: Theme.radius-small;
-                background: save-area.has-hover ? Theme.accent-hover : Theme.accent-primary;
-                animate background { duration: Theme.transition-fast; }
-
-                Text {
-                    text: root.i18n-save;
-                    color: #FFFFFF;
-                    font-size: Theme.font-size-body;
-                    font-family: Theme.font-family;
-                    font-weight: 600;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-
-                save-area := TouchArea {
-                    mouse-cursor: pointer;
-                    clicked => { root.save-settings(); }
                 }
             }
         }
