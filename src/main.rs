@@ -225,11 +225,11 @@ fn main() -> Result<()> {
             if win.get_hotkey_recording() {
                 if let Some(polled) = input::poll_hotkey_capture() {
                     win.set_hotkey_recording(false);
-                    apply_captured_hotkey(win, &hotkey_manager_timer, &polled);
+                    apply_captured_hotkey(win, &hotkey_manager_timer, &shared_state_timer, &polled);
                 }
                 if let Some(captured) = input::get_captured_hotkey() {
                     win.set_hotkey_recording(false);
-                    apply_captured_hotkey(win, &hotkey_manager_timer, &captured);
+                    apply_captured_hotkey(win, &hotkey_manager_timer, &shared_state_timer, &captured);
                 }
             }
         }
@@ -381,19 +381,28 @@ fn open_settings_window(
     win.set_hotkey_recording(false);
     input::stop_hotkey_capture();
 
+    // 以磁盘为准，避免内存配置与文件不一致
+    if let Ok(latest) = Config::load() {
+        if let Ok(mut state) = shared_state.lock() {
+            state.config = latest;
+        }
+    }
+
     // Set i18n texts
     set_settings_i18n_texts(&win);
 
     // Load config into UI
-    let (provider_idx, provider_type, lang_idx, prompt_presets, active_prompt_id) = {
+    let (provider_idx, lang_idx, prompt_presets, active_prompt_id, provider_names) = {
         let state = shared_state.lock().unwrap();
         let config = &state.config;
 
         win.set_hotkey(SharedString::from(&config.hotkey));
         win.set_hotkey_log_enabled(config.hotkey_log_enabled);
 
-        let idx = config.provider_index(&config.active_provider_id).unwrap_or(0);
-        let ptype = get_provider_type_index(idx);
+        let idx = config
+            .provider_index(&config.active_provider_id)
+            .unwrap_or(0)
+            .min(config.providers.len().saturating_sub(1));
 
         if let Some(p) = config.providers.get(idx) {
             win.set_api_key(SharedString::from(&p.api_key));
@@ -401,19 +410,25 @@ fn open_settings_window(
             win.set_model(SharedString::from(&p.model));
         }
 
+        let provider_names: Vec<SharedString> = config
+            .providers
+            .iter()
+            .map(|p| SharedString::from(&p.name))
+            .collect();
         let lang_index = i18n::language_to_index(&config.ui_language);
-        (idx as i32, ptype, lang_index, config.prompt_presets.clone(), config.active_prompt_preset_id.clone())
+        (
+            idx as i32,
+            lang_index,
+            config.prompt_presets.clone(),
+            config.active_prompt_preset_id.clone(),
+            provider_names,
+        )
     };
 
     // Set provider list
-    let provider_names: Vec<SharedString> = vec![
-        "Google Translate".into(), "DeepL".into(), "Zhipu GLM".into(),
-        "OpenAI".into(), "Anthropic".into(), "Custom".into(),
-    ];
     win.set_provider_names(ModelRc::new(VecModel::from(provider_names)));
     // 必须在设置 provider_names 之后再设置 provider_index，
     // 因为 ComboBox 在设置 model 时可能会重置 current-index
-    win.set_provider_type(provider_type);
     win.set_provider_index(provider_idx);
 
     // Set language list and index
@@ -437,28 +452,146 @@ fn open_settings_window(
     let prompt_draft = Rc::new(RefCell::new(PromptPresetDraft { presets: prompt_presets, selected: selected_prompt_idx }));
     sync_prompt_preset_ui(&win, &prompt_draft.borrow());
 
+    // 防止 ComboBox 在下一拍把 index 复位到 0（Slint 内部行为）
+    // 这里强制同步一次，确保 UI 与配置一致
+    let win_sync = win.as_weak();
+    let provider_idx_sync = provider_idx;
+    let lang_idx_sync = lang_idx;
+    let prompt_idx_sync = selected_prompt_idx as i32;
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(w) = win_sync.upgrade() {
+            if w.get_provider_index() != provider_idx_sync {
+                w.set_provider_index(provider_idx_sync);
+            }
+            if w.get_language_index() != lang_idx_sync {
+                w.set_language_index(lang_idx_sync);
+            }
+            if w.get_prompt_preset_index() != prompt_idx_sync {
+                w.set_prompt_preset_index(prompt_idx_sync);
+            }
+        }
+    });
+
+    // 自动保存（延迟写盘）
+    let autosave_timer = Rc::new(slint::Timer::default());
+    let autosave_timer_save = Rc::clone(&autosave_timer);
+    let shared_state_autosave = Arc::clone(shared_state);
+    let schedule_autosave: Rc<dyn Fn()> = Rc::new(move || {
+        autosave_timer_save.stop();
+        let shared_state = Arc::clone(&shared_state_autosave);
+        autosave_timer_save.start(slint::TimerMode::SingleShot, Duration::from_millis(450), move || {
+            if let Ok(state) = shared_state.lock() {
+                if let Err(e) = state.config.save() {
+                    eprintln!("自动保存配置失败: {}", e);
+                }
+            }
+        });
+    });
+
+    let current_provider_index = Rc::new(RefCell::new(provider_idx));
+    let apply_ui_to_state: Rc<dyn Fn(&SettingsWindow)> = {
+        let shared_state = Arc::clone(shared_state);
+        let prompt_draft = Rc::clone(&prompt_draft);
+        let current_provider_index = Rc::clone(&current_provider_index);
+        Rc::new(move |w: &SettingsWindow| {
+            let mut config = {
+                let state = shared_state.lock().unwrap();
+                state.config.clone()
+            };
+
+            config.hotkey = w.get_hotkey().to_string();
+            config.hotkey_log_enabled = w.get_hotkey_log_enabled();
+            config.ui_language = i18n::index_to_language(w.get_language_index());
+
+            let idx = (*current_provider_index.borrow()).max(0) as usize;
+            if let Some(p) = config.providers.get_mut(idx) {
+                p.api_key = w.get_api_key().to_string();
+                p.api_base = w.get_api_base().to_string();
+                p.model = w.get_model().to_string();
+                config.active_provider_id = p.id.clone();
+            }
+
+            {
+                let mut draft = prompt_draft.borrow_mut();
+                update_selected_preset_from_ui(w, &mut draft);
+                config.prompt_presets = draft.presets.clone();
+                if let Some(active) = config.prompt_presets.get(draft.selected) {
+                    config.active_prompt_preset_id = active.id.clone();
+                }
+                config.normalize();
+            }
+
+            let hotkey_log_enabled = config.hotkey_log_enabled;
+            if let Ok(mut state) = shared_state.lock() {
+                state.config = config;
+            }
+            input::set_hotkey_log_enabled(hotkey_log_enabled);
+        })
+    };
+
     // Handle provider selection
     let shared_state_sel = Arc::clone(shared_state);
     let win_weak = win.as_weak();
+    let current_provider_index_sel = Rc::clone(&current_provider_index);
+    let schedule_autosave_sel = Rc::clone(&schedule_autosave);
+    let apply_ui_to_state_sel = Rc::clone(&apply_ui_to_state);
     win.on_provider_selected(move |index| {
         if let Some(w) = win_weak.upgrade() {
-            let state = shared_state_sel.lock().unwrap();
-            if let Some(p) = state.config.providers.get(index as usize) {
-                w.set_api_key(SharedString::from(&p.api_key));
-                w.set_api_base(SharedString::from(&p.api_base));
-                w.set_model(SharedString::from(&p.model));
-                w.set_provider_type(get_provider_type_index(index as usize));
+            let selected_name = index.to_string();
+            let prev_idx = (*current_provider_index_sel.borrow()).max(0) as usize;
+
+            let new_idx = {
+                let state = shared_state_sel.lock().unwrap();
+                state
+                    .config
+                    .providers
+                    .iter()
+                    .position(|p| p.name == selected_name)
+                    .unwrap_or(0)
+            };
+
+            if let Ok(mut state) = shared_state_sel.lock() {
+                if let Some(prev) = state.config.providers.get_mut(prev_idx) {
+                    prev.api_key = w.get_api_key().to_string();
+                    prev.api_base = w.get_api_base().to_string();
+                    prev.model = w.get_model().to_string();
+                }
+                if let Some(next) = state.config.providers.get(new_idx) {
+                    w.set_api_key(SharedString::from(&next.api_key));
+                    w.set_api_base(SharedString::from(&next.api_base));
+                    w.set_model(SharedString::from(&next.model));
+                }
             }
+
+            *current_provider_index_sel.borrow_mut() = new_idx as i32;
+            if w.get_provider_index() != new_idx as i32 {
+                w.set_provider_index(new_idx as i32);
+            }
+            apply_ui_to_state_sel(&w);
+            schedule_autosave_sel();
         }
     });
 
     // Handle language selection (preview)
     let win_weak_lang = win.as_weak();
-    win.on_language_selected(move |index| {
+    let schedule_autosave_lang = Rc::clone(&schedule_autosave);
+    let apply_ui_to_state_lang = Rc::clone(&apply_ui_to_state);
+    win.on_language_selected(move |name| {
+        let index = match name.as_str() {
+            "Auto" => 0,
+            "English" => 1,
+            "中文" => 2,
+            _ => 0,
+        };
         let new_lang = i18n::index_to_language(index);
         i18n::init(&new_lang);
         if let Some(w) = win_weak_lang.upgrade() {
+            if w.get_language_index() != index {
+                w.set_language_index(index);
+            }
             set_settings_i18n_texts(&w);
+            apply_ui_to_state_lang(&w);
+            schedule_autosave_lang();
         }
     });
 
@@ -474,20 +607,26 @@ fn open_settings_window(
     // Handle prompt preset selection / add / delete (draft only)
     let win_weak_prompt = win.as_weak();
     let prompt_draft_sel = Rc::clone(&prompt_draft);
-    win.on_prompt_preset_selected(move |index| {
+    let schedule_autosave_preset = Rc::clone(&schedule_autosave);
+    let apply_ui_to_state_preset = Rc::clone(&apply_ui_to_state);
+    win.on_prompt_preset_selected(move |name| {
         if let Some(w) = win_weak_prompt.upgrade() {
             let mut draft = prompt_draft_sel.borrow_mut();
             update_selected_preset_from_ui(&w, &mut draft);
-            let idx = index.max(0) as usize;
-            if idx < draft.presets.len() {
+            let selected_name = name.to_string();
+            if let Some(idx) = draft.presets.iter().position(|p| p.name == selected_name) {
                 draft.selected = idx;
             }
             sync_prompt_preset_ui(&w, &draft);
+            apply_ui_to_state_preset(&w);
+            schedule_autosave_preset();
         }
     });
 
     let win_weak_prompt_add = win.as_weak();
     let prompt_draft_add = Rc::clone(&prompt_draft);
+    let schedule_autosave_add = Rc::clone(&schedule_autosave);
+    let apply_ui_to_state_add = Rc::clone(&apply_ui_to_state);
     win.on_add_prompt_preset(move || {
         if let Some(w) = win_weak_prompt_add.upgrade() {
             let mut draft = prompt_draft_add.borrow_mut();
@@ -496,11 +635,15 @@ fn open_settings_window(
             draft.presets.push(new_preset);
             draft.selected = draft.presets.len().saturating_sub(1);
             sync_prompt_preset_ui(&w, &draft);
+            apply_ui_to_state_add(&w);
+            schedule_autosave_add();
         }
     });
 
     let win_weak_prompt_del = win.as_weak();
     let prompt_draft_del = Rc::clone(&prompt_draft);
+    let schedule_autosave_del = Rc::clone(&schedule_autosave);
+    let apply_ui_to_state_del = Rc::clone(&apply_ui_to_state);
     win.on_delete_prompt_preset(move || {
         if let Some(w) = win_weak_prompt_del.upgrade() {
             let mut draft = prompt_draft_del.borrow_mut();
@@ -518,95 +661,43 @@ fn open_settings_window(
                 draft.selected = draft.presets.len().saturating_sub(1);
             }
             sync_prompt_preset_ui(&w, &draft);
+            apply_ui_to_state_del(&w);
+            schedule_autosave_del();
         }
     });
 
-    // Handle save
-    let shared_state_save = Arc::clone(shared_state);
-    let settings_window_save = Rc::clone(settings_window);
-    let hotkey_manager_save = Arc::clone(hotkey_manager);
-    let win_weak_save = win.as_weak();
-    let prompt_draft_save = Rc::clone(&prompt_draft);
-    win.on_save_settings(move || {
-        if let Some(w) = win_weak_save.upgrade() {
-            let new_hotkey = w.get_hotkey().to_string();
-            let mut config = {
-                let state = shared_state_save.lock().unwrap();
-                state.config.clone()
-            };
-            let original_hotkey = config.hotkey.clone();
-            config.hotkey = new_hotkey;
-            config.hotkey_log_enabled = w.get_hotkey_log_enabled();
-
-            let idx = w.get_provider_index() as usize;
-            if let Some(p) = config.providers.get_mut(idx) {
-                p.api_key = w.get_api_key().to_string();
-                p.api_base = w.get_api_base().to_string();
-                p.model = w.get_model().to_string();
-                config.active_provider_id = p.id.clone();
-            }
-
-            // Save language setting
-            config.ui_language = i18n::index_to_language(w.get_language_index());
-
-            // Save prompt preset setting
-            {
-                let mut draft = prompt_draft_save.borrow_mut();
-                update_selected_preset_from_ui(&w, &mut draft);
-                config.prompt_presets = draft.presets.clone();
-                if let Some(active) = config.prompt_presets.get(draft.selected) {
-                    config.active_prompt_preset_id = active.id.clone();
-                }
-                config.normalize();
-            }
-
-            let hotkey_result = hotkey_manager_save
-                .lock()
-                .map_err(|e| format!("hotkey manager unavailable: {}", e))
-                .and_then(|mut mgr| mgr.update_hotkey(&config.hotkey).map_err(|e| e.to_string()));
-
-            if let Err(err) = hotkey_result {
-                eprintln!("更新全局快捷键失败: {}", err);
-                config.hotkey = original_hotkey;
-                w.set_hotkey(SharedString::from(&config.hotkey));
-            }
-
-            if let Err(e) = config.save() {
-                eprintln!("Failed to save config: {}", e);
-            }
-
-            let hotkey_log_enabled = config.hotkey_log_enabled;
-            if let Ok(mut state) = shared_state_save.lock() {
-                state.config = config;
-            }
-            input::set_hotkey_log_enabled(hotkey_log_enabled);
-
-            w.set_hotkey_recording(false);
-            input::stop_hotkey_capture();
-            w.hide().ok();
+    // Handle settings changed (auto-save)
+    let win_weak_changed = win.as_weak();
+    let schedule_autosave_changed = Rc::clone(&schedule_autosave);
+    let apply_ui_to_state_changed = Rc::clone(&apply_ui_to_state);
+    win.on_settings_changed(move || {
+        if let Some(w) = win_weak_changed.upgrade() {
+            apply_ui_to_state_changed(&w);
+            schedule_autosave_changed();
         }
-        *settings_window_save.borrow_mut() = None;
+    });
+
+    // Handle apply button (flush auto-save now)
+    let win_weak_apply = win.as_weak();
+    let shared_state_apply = Arc::clone(shared_state);
+    let autosave_timer_apply = Rc::clone(&autosave_timer);
+    let apply_ui_to_state_apply = Rc::clone(&apply_ui_to_state);
+    win.on_apply_api_settings(move || {
+        if let Some(w) = win_weak_apply.upgrade() {
+            autosave_timer_apply.stop();
+            apply_ui_to_state_apply(&w);
+            if let Ok(state) = shared_state_apply.lock() {
+                if let Err(e) = state.config.save() {
+                    eprintln!("写入配置失败: {}", e);
+                }
+            }
+        }
     });
 
     // Handle cancel
     let settings_window_cancel = Rc::clone(settings_window);
-    let shared_state_cancel = Arc::clone(shared_state);
-    let hotkey_manager_cancel = Arc::clone(hotkey_manager);
     let win_weak_cancel = win.as_weak();
     win.on_cancel_settings(move || {
-        // Restore original language on cancel
-        let state = shared_state_cancel.lock().unwrap();
-        i18n::init(&state.config.ui_language);
-        drop(state);
-
-        if let Ok(state) = shared_state_cancel.lock() {
-            if let Ok(mut mgr) = hotkey_manager_cancel.lock() {
-                if let Err(err) = mgr.update_hotkey(&state.config.hotkey) {
-                    eprintln!("取消设置时恢复全局快捷键失败: {}", err);
-                }
-            }
-        }
-
         input::stop_hotkey_capture();
         if let Some(w) = win_weak_cancel.upgrade() {
             w.set_hotkey_recording(false);
@@ -617,15 +708,6 @@ fn open_settings_window(
 
     win.show().ok();
     *settings_window.borrow_mut() = Some(win);
-}
-
-/// Get provider type index for UI (0=google, 1=deepl, 2+=llm)
-fn get_provider_type_index(provider_idx: usize) -> i32 {
-    match provider_idx {
-        0 => 0,  // Google
-        1 => 1,  // DeepL
-        _ => provider_idx as i32,  // LLM providers
-    }
 }
 
 fn popup_physical_size(popup: &TranslatePopup) -> (i32, i32) {
@@ -706,6 +788,7 @@ fn handle_translate_hotkey(
 fn apply_captured_hotkey(
     win: &SettingsWindow,
     hotkey_manager: &Arc<Mutex<HotkeyManager>>,
+    shared_state: &Arc<Mutex<SharedState>>,
     hotkey: &str,
 ) {
     if hotkey.is_empty() {
@@ -724,6 +807,13 @@ fn apply_captured_hotkey(
     }
 
     win.set_hotkey(SharedString::from(hotkey));
+
+    if let Ok(mut state) = shared_state.lock() {
+        state.config.hotkey = hotkey.to_string();
+        if let Err(e) = state.config.save() {
+            eprintln!("写入配置失败: {}", e);
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -828,6 +918,7 @@ fn set_settings_i18n_texts(win: &SettingsWindow) {
     win.set_i18n_api_base(SharedString::from(t.api_base_url));
     win.set_i18n_model(SharedString::from(t.model));
     win.set_i18n_model_placeholder(SharedString::from(t.model_placeholder));
+    win.set_i18n_apply(SharedString::from(t.apply));
     win.set_i18n_prompt_settings(SharedString::from(t.prompt_settings));
     win.set_i18n_prompt_preset(SharedString::from(t.prompt_preset));
     win.set_i18n_prompt_add(SharedString::from(t.prompt_add));
@@ -837,7 +928,6 @@ fn set_settings_i18n_texts(win: &SettingsWindow) {
     win.set_i18n_prompt_user(SharedString::from(t.prompt_user));
     win.set_i18n_prompt_vars(SharedString::from(t.prompt_vars));
     win.set_i18n_cancel(SharedString::from(t.cancel));
-    win.set_i18n_save(SharedString::from(t.save));
     win.set_i18n_language(SharedString::from(t.ui_language));
     win.set_i18n_hotkey_log_title(SharedString::from(t.hotkey_log_title));
     win.set_i18n_hotkey_log_enable(SharedString::from(t.hotkey_log_enable));
